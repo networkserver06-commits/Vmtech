@@ -122,7 +122,7 @@ export default function Home() {
   const revokeApiKey = trpc.engine.revokeApiKey.useMutation({ onSuccess: () => { apiKeys.refetch(); notify("API key revoked"); } });
   const createTill = trpc.engine.createTill.useMutation({ onSuccess: () => { tills.refetch(); setTillNumber(""); setTillName(""); setTillLocation(""); notify("Till added to your workspace"); } });
   const deleteTill = trpc.engine.deleteTill.useMutation({ onSuccess: () => { tills.refetch(); notify("Till removed"); } });
-  const depositWallet = trpc.engine.depositWallet.useMutation({ onSuccess: () => { overview.refetch(); walletDeposits.refetch(); tillTransactions.refetch(); setDepositPhone(""); setDepositAmount(""); notify("Deposit request sent. Complete the STK prompt to credit your wallet."); } });
+  const depositWallet = trpc.engine.depositWallet.useMutation({ onSuccess: () => { overview.refetch(); walletDeposits.refetch(); tillTransactions.refetch(); setDepositPhone(""); setDepositAmount(""); notify("Deposit request sent. Complete the STK prompt to credit your wallet."); }, onError: (error) => notify(error.message || "Deposit request failed. Check your M-PESA configuration and try again.") });
   useEffect(() => {
     if (!loading && !user) navigate("/login");
   }, [loading, user, navigate]);
