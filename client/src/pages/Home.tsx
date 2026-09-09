@@ -119,8 +119,7 @@ export default function Home() {
     setToast(message);
     window.setTimeout(() => setToast(null), 2600);
   };
-  if (loading || !user || overview.isLoading) return <div className="auth-state"><div className="brand-mark"><Zap size={17} /></div><span>Loading secure workspace…</span></div>;
-  const live = overview.data ?? { balance: 0, collections: 0, payouts: 0, successRate: 0, activeKeys: 0, accountId: user.accountId ?? "—", environment: "NOT_CONFIGURED", shortcode: null, transactions: [] };
+  const live = overview.data ?? { balance: 0, collections: 0, payouts: 0, successRate: 0, activeKeys: 0, accountId: user?.accountId ?? "—", environment: "NOT_CONFIGURED", shortcode: null, transactions: [] };
   const activities = live.transactions as Array<Record<string, unknown>>;
   const visibleKeys = (apiKeys.data ?? []) as Array<Record<string, unknown>>;
   const activeKey = visibleKeys.find((key) => Boolean(key.isActive));
@@ -129,6 +128,7 @@ export default function Home() {
     const max = Math.max(...values, 1);
     return Array.from({ length: 12 }, (_, index) => Math.max(8, Math.round(((values[index] ?? 0) / max) * 92)));
   }, [activities]);
+  if (loading || !user || overview.isLoading) return <div className="auth-state"><div className="brand-mark"><Zap size={17} /></div><span>Loading secure workspace…</span></div>;
 
   return (
     <div className="app-shell">
