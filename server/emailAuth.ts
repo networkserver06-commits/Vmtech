@@ -30,7 +30,7 @@ async function sendVerificationEmail(email: string, token: string) {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL;
   if (!apiKey || !from) throw new Error("Email verification is not configured. Add RESEND_API_KEY and RESEND_FROM_EMAIL.");
-  const appUrl = process.env.APP_URL || "http://localhost:3000";
+  const appUrl = process.env.APP_URL || "https://www.leetec.online";
   const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ from, to: [email], subject: "Verify your LeeTec Engine email", html: `<p>Welcome to LeeTec Engine.</p><p><a href="${appUrl}/api/auth/verify?token=${encodeURIComponent(token)}">Verify your email address</a></p><p>This link expires in 30 minutes.</p>` }) });
   if (!response.ok) throw new Error("Unable to send verification email");
 }
@@ -51,6 +51,18 @@ export async function registerWithEmail(input: { email: string; password: string
   await db.execute({ sql: "INSERT INTO emailVerificationTokens (userId, tokenHash, expiresAt) VALUES (?, ?, ?)", args: [userId, hashToken(rawToken), new Date(Date.now() + 30 * 60 * 1000).toISOString()] });
   await sendVerificationEmail(email, rawToken);
   return { email, requiresVerification: true };
+}
+
+export async function resendVerificationEmail(emailInput: string) {
+  const db = await getTurso(); if (!db) throw new Error("Turso is not configured");
+  const email = emailInput.trim().toLowerCase();
+  const row = asRows<TursoRow>(await db.execute({ sql: "SELECT id, emailVerified FROM users WHERE lower(email) = ? LIMIT 1", args: [email] }))[0];
+  if (!row) throw new Error("No account was found for this email");
+  if (Boolean(row.emailVerified)) throw new Error("This email is already verified. You can sign in.");
+  const rawToken = randomBytes(32).toString("base64url");
+  await db.execute({ sql: "INSERT INTO emailVerificationTokens (userId, tokenHash, expiresAt) VALUES (?, ?, ?)", args: [Number(row.id), hashToken(rawToken), new Date(Date.now() + 30 * 60 * 1000).toISOString()] });
+  await sendVerificationEmail(email, rawToken);
+  return { sent: true };
 }
 
 export async function verifyEmail(token: string) {

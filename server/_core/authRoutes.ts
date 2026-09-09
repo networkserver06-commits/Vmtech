@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from "express";
-import { clearSessionCookie, loginWithEmail, registerWithEmail, setSessionCookie, verifyEmail } from "../emailAuth.js";
+import { clearSessionCookie, loginWithEmail, registerWithEmail, resendVerificationEmail, setSessionCookie, verifyEmail } from "../emailAuth.js";
 
 export function registerAuthRoutes(app: Express) {
   app.post("/api/auth/register", async (req: Request, res: Response) => {
@@ -19,6 +19,13 @@ export function registerAuthRoutes(app: Express) {
       setSessionCookie(req, res, token);
       res.json({ success: true });
     } catch (error) { res.status(401).json({ error: error instanceof Error ? error.message : "Login failed" }); }
+  });
+  app.post("/api/auth/resend-verification", async (req: Request, res: Response) => {
+    try {
+      const { email } = req.body ?? {};
+      if (typeof email !== "string" || !/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ error: "A valid email is required" });
+      res.json(await resendVerificationEmail(email));
+    } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "Unable to resend verification email" }); }
   });
   app.get("/api/auth/verify", async (req: Request, res: Response) => {
     try { await verifyEmail(typeof req.query.token === "string" ? req.query.token : ""); res.redirect("/login?verified=1"); }
