@@ -4,7 +4,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
-import { getDb, getOverviewData, insertApiKey, insertTransaction } from "./db";
+import { createCollection, createPayout, deleteCollection, deletePayout, getDb, getOverviewData, insertApiKey, insertTransaction, listCollections, listPayouts, updateCollection, updatePayout } from "./db";
 import { mpesaConfigs, payouts, wallets } from "../drizzle/schema";
 import { createSecurityCredential, encryptSecret, generateApiKey, generatePrefixedReference, hashApiKey } from "./security";
 import { encryptedConfigToDaraja, triggerB2cPayout, triggerStkPush } from "./mpesa";
@@ -37,6 +37,14 @@ export const appRouter = router({
   }),
   engine: router({
     overview: protectedProcedure.query(({ ctx }) => getOverviewData(ctx.user.id)),
+    listCollections: protectedProcedure.query(({ ctx }) => listCollections(ctx.user.id)),
+    createCollection: protectedProcedure.input(z.object({ phoneNumber: phoneSchema, amount: amountSchema, accountReference: z.string().regex(/^1/, "Reference must start with 1").max(64) })).mutation(({ ctx, input }) => createCollection({ userId: ctx.user.id, checkoutRequestId: `manual_${Date.now()}`, accountReference: input.accountReference, phoneNumber: input.phoneNumber, amount: input.amount })),
+    updateCollection: protectedProcedure.input(z.object({ id: z.number().int().positive(), phoneNumber: phoneSchema, amount: amountSchema, accountReference: z.string().regex(/^1/).max(64) })).mutation(({ ctx, input }) => updateCollection(ctx.user.id, input.id, input)),
+    deleteCollection: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteCollection(ctx.user.id, input.id)),
+    listPayouts: protectedProcedure.query(({ ctx }) => listPayouts(ctx.user.id)),
+    createPayout: protectedProcedure.input(z.object({ phoneNumber: phoneSchema, amount: amountSchema, commandId: z.enum(["BusinessPayment", "SalaryPayment"]).default("BusinessPayment") })).mutation(({ ctx, input }) => createPayout({ userId: ctx.user.id, recipientPhone: input.phoneNumber, amount: input.amount, commandId: input.commandId })),
+    updatePayout: protectedProcedure.input(z.object({ id: z.number().int().positive(), phoneNumber: phoneSchema, amount: amountSchema, commandId: z.enum(["BusinessPayment", "SalaryPayment"]) })).mutation(({ ctx, input }) => updatePayout(ctx.user.id, input.id, { recipientPhone: input.phoneNumber, amount: input.amount, commandId: input.commandId })),
+    deletePayout: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deletePayout(ctx.user.id, input.id)),
     createApiKey: protectedProcedure.input(z.object({ name: z.string().min(2).max(100) })).mutation(async ({ ctx, input }) => {
       const rawKey = generateApiKey();
       await insertApiKey({ userId: ctx.user.id, name: input.name, keyHash: hashApiKey(rawKey) });

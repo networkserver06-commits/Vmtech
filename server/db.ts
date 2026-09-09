@@ -100,3 +100,52 @@ export async function insertTransaction(input: { userId: number; checkoutRequest
   if (!db) return null;
   return db.insert(transactions).values({ ...input, amount: input.amount.toFixed(2), status: input.status ?? "PENDING" });
 }
+
+export async function listCollections(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(transactions).where(eq(transactions.userId, userId)).orderBy(desc(transactions.createdAt));
+}
+
+export async function createCollection(input: { userId: number; checkoutRequestId: string; accountReference: string; phoneNumber: string; amount: number; status?: string }) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.insert(transactions).values({ userId: input.userId, checkoutRequestId: input.checkoutRequestId, accountReference: input.accountReference, phoneNumber: input.phoneNumber, amount: input.amount.toFixed(2), status: input.status ?? "PENDING" });
+  return result;
+}
+
+export async function updateCollection(userId: number, id: number, input: { phoneNumber: string; amount: number; accountReference: string }) {
+  const db = await getDb();
+  if (!db) return null;
+  return db.update(transactions).set({ phoneNumber: input.phoneNumber, amount: input.amount.toFixed(2), accountReference: input.accountReference }).where(and(eq(transactions.id, id), eq(transactions.userId, userId)));
+}
+
+export async function deleteCollection(userId: number, id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  return db.delete(transactions).where(and(eq(transactions.id, id), eq(transactions.userId, userId)));
+}
+
+export async function listPayouts(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(payouts).where(eq(payouts.userId, userId)).orderBy(desc(payouts.createdAt));
+}
+
+export async function createPayout(input: { userId: number; recipientPhone: string; amount: number; commandId: "BusinessPayment" | "SalaryPayment"; status?: string }) {
+  const db = await getDb();
+  if (!db) return null;
+  return db.insert(payouts).values({ userId: input.userId, recipientPhone: input.recipientPhone, amount: input.amount.toFixed(2), commandId: input.commandId, status: input.status ?? "PENDING" });
+}
+
+export async function updatePayout(userId: number, id: number, input: { recipientPhone: string; amount: number; commandId: "BusinessPayment" | "SalaryPayment" }) {
+  const db = await getDb();
+  if (!db) return null;
+  return db.update(payouts).set({ recipientPhone: input.recipientPhone, amount: input.amount.toFixed(2), commandId: input.commandId }).where(and(eq(payouts.id, id), eq(payouts.userId, userId)));
+}
+
+export async function deletePayout(userId: number, id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  return db.delete(payouts).where(and(eq(payouts.id, id), eq(payouts.userId, userId)));
+}

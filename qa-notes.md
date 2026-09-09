@@ -7,3 +7,7 @@
 - Production build, TypeScript check, and Vitest security tests passed before this visual adjustment.
 
 Final verification at 1440x900 confirmed the success-rate card now separates its trend line, progress bar, and caption, while the active-key card separates environment metadata from the manage action.
+
+Collections and Payouts desktop previews render with distinct navigation states, summary metrics, sortable table headers, search/status controls, edit and delete row actions, and responsive table containers.
+
+Mobile previews at 390x844 stack the page heading, CTA, summary cards, balance banner, and table controls cleanly without horizontal page overflow. The table remains intentionally scrollable within its data region.
