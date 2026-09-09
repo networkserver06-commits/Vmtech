@@ -9,11 +9,12 @@ import Collections from "./pages/Collections";
 import Payouts from "./pages/Payouts";
 import Admin from "./pages/Admin";
 import Login from "./pages/Login";
+import Landing from "./pages/Landing";
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
+      <Route path="/" component={Landing} />
       <Route path="/login" component={Login} />
       <Route path="/dashboard" component={Home} />
       <Route path="/admin" component={Admin} />

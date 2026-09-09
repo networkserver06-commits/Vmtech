@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
+import { useAuth } from "@/_core/hooks/useAuth";
 import {
   Activity,
   ArrowDownLeft,
@@ -99,12 +100,17 @@ export default function Home() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const { user, loading } = useAuth();
+  useEffect(() => {
+    if (!loading && !user) navigate("/login");
+  }, [loading, user, navigate]);
   const greeting = useMemo(() => "Good morning, Brian", []);
 
   const notify = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(null), 2600);
   };
+  if (loading || !user) return <div className="auth-state"><div className="brand-mark"><Zap size={17} /></div><span>Loading secure workspace…</span></div>;
 
   return (
     <div className="app-shell">
