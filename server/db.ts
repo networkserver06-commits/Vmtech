@@ -1,5 +1,4 @@
 import type { User } from "../drizzle/schema";
-import { ENV } from "./_core/env";
 import { asRows, execute, getTurso, type TursoRow } from "./turso";
 
 const now = () => new Date().toISOString();
@@ -19,7 +18,7 @@ export async function upsertUser(user: { openId: string; accountId?: string | nu
   }
   const signedIn = (user.lastSignedIn ?? new Date()).toISOString();
   await db.execute({ sql: `INSERT INTO users (openId, accountId, name, email, loginMethod, role, lastSignedIn, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(openId) DO UPDATE SET accountId=excluded.accountId, name=excluded.name, email=excluded.email, loginMethod=excluded.loginMethod, role=excluded.role, lastSignedIn=excluded.lastSignedIn, updatedAt=excluded.updatedAt`, args: [user.openId, accountId ?? null, user.name ?? null, user.email ?? null, user.loginMethod ?? null, user.role ?? (user.openId === ENV.ownerOpenId ? "admin" : "user"), signedIn, now()] });
+    ON CONFLICT(openId) DO UPDATE SET accountId=excluded.accountId, name=excluded.name, email=excluded.email, loginMethod=excluded.loginMethod, role=excluded.role, lastSignedIn=excluded.lastSignedIn, updatedAt=excluded.updatedAt`, args: [user.openId, accountId ?? null, user.name ?? null, user.email ?? null, user.loginMethod ?? null, user.role ?? "user", signedIn, now()] });
   const saved = asRows<TursoRow>(await db.execute({ sql: "SELECT id FROM users WHERE openId = ?", args: [user.openId] }))[0];
   if (saved) await db.execute({ sql: "INSERT OR IGNORE INTO wallets (userId) VALUES (?)", args: [Number(saved.id)] });
 }

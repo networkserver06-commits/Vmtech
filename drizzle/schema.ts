@@ -5,6 +5,8 @@ export type User = {
   name: string | null;
   email: string | null;
   loginMethod: string | null;
+  passwordHash?: string | null;
+  emailVerified?: boolean;
   role: string;
   isSuspended: boolean;
   createdAt: Date;

@@ -15,6 +15,7 @@ const schemaStatements = [
   `CREATE TABLE IF NOT EXISTS webhookLogs (id INTEGER PRIMARY KEY AUTOINCREMENT, webhookEndpointId INTEGER NOT NULL, statusCode INTEGER NOT NULL, payload TEXT NOT NULL, status TEXT NOT NULL, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
   `CREATE TABLE IF NOT EXISTS systemSettings (id INTEGER PRIMARY KEY AUTOINCREMENT, settingKey TEXT NOT NULL UNIQUE, value TEXT NOT NULL, description TEXT, updatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
   `CREATE TABLE IF NOT EXISTS auditLogs (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, action TEXT NOT NULL, details TEXT NOT NULL, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+  `CREATE TABLE IF NOT EXISTS emailVerificationTokens (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, tokenHash TEXT NOT NULL UNIQUE, expiresAt TEXT NOT NULL, usedAt TEXT, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
   `CREATE INDEX IF NOT EXISTS users_account_idx ON users(accountId)`,
   `CREATE INDEX IF NOT EXISTS transactions_user_idx ON transactions(userId)`,
   `CREATE INDEX IF NOT EXISTS payouts_user_idx ON payouts(userId)`,
@@ -25,7 +26,14 @@ const schemaStatements = [
 export async function getTurso() {
   if (!client && process.env.TURSO_DATABASE_URL) {
     client = createClient({ url: process.env.TURSO_DATABASE_URL, authToken: process.env.TURSO_AUTH_TOKEN });
-    initialized = client.batch(schemaStatements.map((sql) => ({ sql })), "write").then(() => undefined);
+    initialized = client.batch(schemaStatements.map((sql) => ({ sql })), "write").then(async () => {
+      const columns = await client!.execute("PRAGMA table_info(users)");
+      const names = new Set(columns.rows.map((row) => String((row as unknown as { name: string }).name)));
+      const additions = [
+        ["passwordHash", "TEXT"], ["emailVerified", "INTEGER NOT NULL DEFAULT 0"],
+      ] as const;
+      for (const [name, type] of additions) if (!names.has(name)) await client!.execute(`ALTER TABLE users ADD COLUMN ${name} ${type}`);
+    });
   }
   if (initialized) await initialized;
   return client;
