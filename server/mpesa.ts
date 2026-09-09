@@ -1,7 +1,7 @@
 type DarajaConfig = { consumerKey: string; consumerSecret: string; passkey: string; shortcode: string; environment?: "SANDBOX" | "PRODUCTION"; initiatorName?: string; initiatorPassword?: string };
 type StoredMpesaConfig = { consumerKeyEncrypted: string; consumerSecretEncrypted: string; passkeyEncrypted: string; shortcode: string; environment?: string; b2cInitiatorName?: string | null; b2cInitiatorPasswordEncrypted?: string | null };
 
-import { decryptSecret, createSecurityCredential } from "./security";
+import { decryptSecret, createSecurityCredential } from "./security.js";
 
 function getBaseUrl(config: DarajaConfig) {
   return config.environment === "PRODUCTION" && process.env.MPESA_ENVIRONMENT === "PRODUCTION"

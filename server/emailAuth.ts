@@ -1,12 +1,12 @@
 import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { SignJWT, jwtVerify } from "jose";
-import { getSessionCookieOptions } from "./_core/cookies";
-import { getTurso, asRows, type TursoRow } from "./turso";
-import { upsertUser, getUserById } from "./db";
+import { getSessionCookieOptions } from "./_core/cookies.js";
+import { getTurso, asRows, type TursoRow } from "./turso.js";
+import { upsertUser, getUserById } from "./db.js";
 import type { Request, Response } from "express";
 import { parse as parseCookieHeader } from "cookie";
-import { COOKIE_NAME, ONE_YEAR_MS } from "../shared/const";
+import { COOKIE_NAME, ONE_YEAR_MS } from "../shared/const.js";
 
 const scrypt = promisify(scryptCallback);
 const sessionKey = () => new TextEncoder().encode(process.env.JWT_SECRET || "change-this-session-secret");

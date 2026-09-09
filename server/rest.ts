@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
-import { appRouter } from "./routers";
-import { authenticateApiKey, getUserById, markApiKeyUsed, updateStkCallback } from "./db";
-import { hashApiKey } from "./security";
+import { appRouter } from "./routers.js";
+import { authenticateApiKey, getUserById, markApiKeyUsed, updateStkCallback } from "./db.js";
+import { hashApiKey } from "./security.js";
 
 async function authenticate(req: Request, res: Response) {
   const raw = req.header("x-api-key") || req.header("authorization")?.replace(/^Bearer\s+/i, "");

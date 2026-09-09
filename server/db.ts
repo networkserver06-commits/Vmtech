@@ -1,5 +1,5 @@
-import type { User } from "../drizzle/schema";
-import { asRows, execute, getTurso, type TursoRow } from "./turso";
+import type { User } from "../drizzle/schema.js";
+import { asRows, execute, getTurso, type TursoRow } from "./turso.js";
 
 const now = () => new Date().toISOString();
 const userFromRow = (row: TursoRow) => ({ ...row, isSuspended: Boolean(row.isSuspended), createdAt: new Date(String(row.createdAt)), updatedAt: new Date(String(row.updatedAt)), lastSignedIn: new Date(String(row.lastSignedIn)) }) as unknown as User;

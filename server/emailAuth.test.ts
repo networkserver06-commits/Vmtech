@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hashPassword, verifyPassword } from "./emailAuth";
+import { hashPassword, verifyPassword } from "./emailAuth.js";
 
 describe("email authentication", () => {
   it("hashes and verifies passwords", async () => {

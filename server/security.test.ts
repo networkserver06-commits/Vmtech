@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decryptSecret, encryptSecret, generatePrefixedReference, hashApiKey, signWebhook } from "./security";
+import { decryptSecret, encryptSecret, generatePrefixedReference, hashApiKey, signWebhook } from "./security.js";
 
 describe("LeeTec Engine security primitives", () => {
   it("encrypts and decrypts credential secrets", () => {

@@ -1,4 +1,4 @@
-import { createClient, type Client, type InStatement } from "@libsql/client";
+import { createClient, type Client, type InStatement } from "@libsql/client/web";
 
 let client: Client | null = null;
 let initialized: Promise<void> | null = null;

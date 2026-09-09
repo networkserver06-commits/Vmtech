@@ -1,12 +1,12 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { COOKIE_NAME } from "@shared/const";
-import { getSessionCookieOptions } from "./_core/cookies";
-import { systemRouter } from "./_core/systemRouter";
-import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
-import { adjustWallet, createCollection, createPayout, createPayoutRecord, createWebhook, deleteCollection, deletePayout, deleteWebhook, getOverviewData, getStoredMpesaConfig, getSystemSettings, getWalletBalance, insertApiKey, insertTransaction, listAdminUsers, listAuditLogs, listCollections, listPayouts, listWebhooks, saveMpesaConfig, setUserSuspended, updateCollection, updatePayout, writeAuditLog } from "./db";
-import { createSecurityCredential, encryptSecret, generateApiKey, generatePrefixedReference, hashApiKey } from "./security";
-import { encryptedConfigToDaraja, registerC2bUrls, triggerB2cPayout, triggerStkPush } from "./mpesa";
+import { getSessionCookieOptions } from "./_core/cookies.js";
+import { systemRouter } from "./_core/systemRouter.js";
+import { protectedProcedure, publicProcedure, router } from "./_core/trpc.js";
+import { adjustWallet, createCollection, createPayout, createPayoutRecord, createWebhook, deleteCollection, deletePayout, deleteWebhook, getOverviewData, getStoredMpesaConfig, getSystemSettings, getWalletBalance, insertApiKey, insertTransaction, listAdminUsers, listAuditLogs, listCollections, listPayouts, listWebhooks, saveMpesaConfig, setUserSuspended, updateCollection, updatePayout, writeAuditLog } from "./db.js";
+import { createSecurityCredential, encryptSecret, generateApiKey, generatePrefixedReference, hashApiKey } from "./security.js";
+import { encryptedConfigToDaraja, registerC2bUrls, triggerB2cPayout, triggerStkPush } from "./mpesa.js";
 
 const phoneSchema = z.string().regex(/^254\d{9}$/, "Use a Kenyan phone number in 254XXXXXXXXX format");
 const amountSchema = z.number().positive().max(1500000);

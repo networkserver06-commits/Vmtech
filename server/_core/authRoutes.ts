@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from "express";
-import { clearSessionCookie, loginWithEmail, registerWithEmail, setSessionCookie, verifyEmail } from "../emailAuth";
+import { clearSessionCookie, loginWithEmail, registerWithEmail, setSessionCookie, verifyEmail } from "../emailAuth.js";
 
 export function registerAuthRoutes(app: Express) {
   app.post("/api/auth/register", async (req: Request, res: Response) => {

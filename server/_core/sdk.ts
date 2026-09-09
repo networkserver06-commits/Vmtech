@@ -1,6 +1,6 @@
 import type { Request } from "express";
-import type { User } from "../../drizzle/schema";
-import { authenticateEmailRequest } from "../emailAuth";
+import type { User } from "../../drizzle/schema.js";
+import { authenticateEmailRequest } from "../emailAuth.js";
 
 export type AuthenticatedUser = User;
 

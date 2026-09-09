@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { registerC2bUrls, triggerStkPush } from "./mpesa";
+import { registerC2bUrls, triggerStkPush } from "./mpesa.js";
 
 describe("Daraja integration safeguards", () => {
   const previousLiveFlag = process.env.MPESA_LIVE_ENABLED;

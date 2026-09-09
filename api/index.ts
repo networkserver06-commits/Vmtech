@@ -1,9 +1,9 @@
 import express from "express";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { registerAuthRoutes } from "../server/_core/authRoutes";
-import { registerRestRoutes } from "../server/rest";
-import { appRouter } from "../server/routers";
-import { createContext } from "../server/_core/context";
+import { registerAuthRoutes } from "../server/_core/authRoutes.js";
+import { registerRestRoutes } from "../server/rest.js";
+import { appRouter } from "../server/routers.js";
+import { createContext } from "../server/_core/context.js";
 
 const app = express();
 app.use(express.json({ limit: "2mb" }));
