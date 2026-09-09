@@ -36,6 +36,6 @@ export function signWebhook(payload: string, secret: string) {
 }
 
 export function createSecurityCredential(initiatorPassword: string, certificate?: string) {
-  if (!certificate) throw new Error("MPESA_PRODUCTION_CERTIFICATE is required for production B2C payouts");
+  if (!certificate) throw new Error("A Safaricom production certificate is required for live B2C payouts");
   return publicEncrypt({ key: certificate, padding: constants.RSA_PKCS1_PADDING }, Buffer.from(initiatorPassword)).toString("base64");
 }
