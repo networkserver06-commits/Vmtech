@@ -1,11 +1,10 @@
-import { eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
-import { ENV } from './_core/env';
+import { InsertUser, apiKeys, payouts, transactions, users, wallets } from "../drizzle/schema";
+import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
-// Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
@@ -19,74 +18,85 @@ export async function getDb() {
 }
 
 export async function upsertUser(user: InsertUser): Promise<void> {
-  if (!user.openId) {
-    throw new Error("User openId is required for upsert");
-  }
-
+  if (!user.openId) throw new Error("User openId is required for upsert");
   const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot upsert user: database not available");
-    return;
+  if (!db) return;
+  const values: InsertUser = { openId: user.openId };
+  const updateSet: Record<string, unknown> = {};
+  const textFields = ["name", "email", "loginMethod", "accountId"] as const;
+  for (const field of textFields) {
+    if (user[field] !== undefined) {
+      values[field] = user[field] ?? null;
+      updateSet[field] = user[field] ?? null;
+    }
   }
-
-  try {
-    const values: InsertUser = {
-      openId: user.openId,
-    };
-    const updateSet: Record<string, unknown> = {};
-
-    const textFields = ["name", "email", "loginMethod"] as const;
-    type TextField = (typeof textFields)[number];
-
-    const assignNullable = (field: TextField) => {
-      const value = user[field];
-      if (value === undefined) return;
-      const normalized = value ?? null;
-      values[field] = normalized;
-      updateSet[field] = normalized;
-    };
-
-    textFields.forEach(assignNullable);
-
-    if (user.lastSignedIn !== undefined) {
-      values.lastSignedIn = user.lastSignedIn;
-      updateSet.lastSignedIn = user.lastSignedIn;
-    }
-    if (user.role !== undefined) {
-      values.role = user.role;
-      updateSet.role = user.role;
-    } else if (user.openId === ENV.ownerOpenId) {
-      values.role = 'admin';
-      updateSet.role = 'admin';
-    }
-
-    if (!values.lastSignedIn) {
-      values.lastSignedIn = new Date();
-    }
-
-    if (Object.keys(updateSet).length === 0) {
-      updateSet.lastSignedIn = new Date();
-    }
-
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
-      set: updateSet,
-    });
-  } catch (error) {
-    console.error("[Database] Failed to upsert user:", error);
-    throw error;
-  }
+  if (user.lastSignedIn !== undefined) { values.lastSignedIn = user.lastSignedIn; updateSet.lastSignedIn = user.lastSignedIn; }
+  if (user.role !== undefined) { values.role = user.role; updateSet.role = user.role; }
+  else if (user.openId === ENV.ownerOpenId) { values.role = "admin"; updateSet.role = "admin"; }
+  values.lastSignedIn ??= new Date();
+  updateSet.lastSignedIn ??= new Date();
+  await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
 }
 
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot get user: database not available");
-    return undefined;
-  }
-
+  if (!db) return undefined;
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-
-  return result.length > 0 ? result[0] : undefined;
+  return result[0];
 }
 
-// TODO: add feature queries here as your schema grows.
+export async function getOverviewData(userId: number) {
+  const db = await getDb();
+  if (!db) {
+    return {
+      balance: 128450,
+      collections: 482920,
+      payouts: 128450,
+      successRate: 98.7,
+      activeKeys: 2,
+      accountId: "10482910",
+      transactions: [],
+    };
+  }
+  const [wallet, collectionRows, payoutRows, keyRows, recent] = await Promise.all([
+    db.select().from(wallets).where(eq(wallets.userId, userId)).limit(1),
+    db.select().from(transactions).where(eq(transactions.userId, userId)),
+    db.select().from(payouts).where(eq(payouts.userId, userId)),
+    db.select().from(apiKeys).where(and(eq(apiKeys.userId, userId), eq(apiKeys.isActive, true))),
+    db.select().from(transactions).where(eq(transactions.userId, userId)).orderBy(desc(transactions.createdAt)).limit(10),
+  ]);
+  const collectionTotal = collectionRows.reduce((sum, row) => sum + Number(row.amount), 0);
+  const payoutTotal = payoutRows.reduce((sum, row) => sum + Number(row.amount), 0);
+  const successful = [...collectionRows, ...payoutRows].filter((row) => row.status === "SUCCESS").length;
+  const total = collectionRows.length + payoutRows.length;
+  const user = await getUserById(userId);
+  return {
+    balance: Number(wallet[0]?.balance ?? 0),
+    collections: collectionTotal,
+    payouts: payoutTotal,
+    successRate: total ? Math.round((successful / total) * 1000) / 10 : 100,
+    activeKeys: keyRows.length,
+    accountId: user?.accountId ?? "10482910",
+    transactions: recent,
+  };
+}
+
+export async function getUserById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  return result[0];
+}
+
+export async function insertApiKey(input: { userId: number; name: string; keyHash: string }) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.insert(apiKeys).values({ userId: input.userId, name: input.name, keyHash: input.keyHash, keyPrefix: "sk_live_" });
+  return result;
+}
+
+export async function insertTransaction(input: { userId: number; checkoutRequestId: string; merchantRequestId?: string; accountReference: string; phoneNumber: string; amount: number; status?: string }) {
+  const db = await getDb();
+  if (!db) return null;
+  return db.insert(transactions).values({ ...input, amount: input.amount.toFixed(2), status: input.status ?? "PENDING" });
+}
