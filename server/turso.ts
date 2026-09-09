@@ -37,6 +37,8 @@ export async function getTurso() {
       const transactionNames = new Set(transactionColumns.rows.map((row) => String((row as unknown as { name: string }).name)));
       const transactionAdditions = [["tillId", "INTEGER"], ["platformFee", "TEXT NOT NULL DEFAULT '0.00'"], ["netAmount", "TEXT"], ["feeChargedAt", "TEXT"]] as const;
       for (const [name, type] of transactionAdditions) if (!transactionNames.has(name)) await client!.execute(`ALTER TABLE transactions ADD COLUMN ${name} ${type}`);
+      await client!.execute("CREATE INDEX IF NOT EXISTS transactions_till_idx ON transactions(tillId)");
+      await client!.execute("CREATE INDEX IF NOT EXISTS transactions_fee_idx ON transactions(feeChargedAt)");
     });
   }
   if (initialized) await initialized;
