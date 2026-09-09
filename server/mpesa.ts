@@ -4,7 +4,7 @@ type StoredMpesaConfig = { consumerKeyEncrypted: string; consumerSecretEncrypted
 import { decryptSecret, createSecurityCredential } from "./security.js";
 
 function getBaseUrl(config: DarajaConfig) {
-  return config.environment === "PRODUCTION" && process.env.MPESA_ENVIRONMENT === "PRODUCTION"
+  return config.environment === "PRODUCTION"
     ? "https://api.safaricom.co.ke"
     : "https://sandbox.safaricom.co.ke";
 }
@@ -19,6 +19,7 @@ export async function getDarajaToken(config: DarajaConfig) {
 }
 
 export async function triggerStkPush(config: DarajaConfig, input: { phoneNumber: string; amount: number; accountReference: string; transactionDesc: string; callbackUrl: string }) {
+  if (process.env.MPESA_LIVE_ENABLED === "true" && (!config.consumerKey || !config.consumerSecret || !config.passkey || config.consumerKey === "sandbox" || config.consumerSecret === "sandbox" || config.passkey === "sandbox")) throw new Error("Live Daraja credentials are missing or invalid");
   if (process.env.MPESA_LIVE_ENABLED !== "true") return { sandbox: true, CheckoutRequestID: `ws_CO_${Date.now()}`, MerchantRequestID: "sandbox-merchant", ResponseDescription: "Sandbox mode — request accepted" };
   const token = await getDarajaToken(config);
   const timestamp = new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14);
