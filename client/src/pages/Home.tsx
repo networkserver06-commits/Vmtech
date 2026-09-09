@@ -109,15 +109,19 @@ export default function Home() {
   const [tillNumber, setTillNumber] = useState("");
   const [tillName, setTillName] = useState("");
   const [tillLocation, setTillLocation] = useState("");
+  const [depositPhone, setDepositPhone] = useState("");
+  const [depositAmount, setDepositAmount] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const { user, loading } = useAuth();
   const overview = trpc.engine.overview.useQuery(undefined, { enabled: Boolean(user), refetchInterval: 5000, refetchOnWindowFocus: true });
   const apiKeys = trpc.engine.listApiKeys.useQuery(undefined, { enabled: Boolean(user), refetchOnWindowFocus: true });
   const tills = trpc.engine.listTills.useQuery(undefined, { enabled: Boolean(user), refetchOnWindowFocus: true });
+  const walletDeposits = trpc.engine.listWalletDeposits.useQuery(undefined, { enabled: Boolean(user), refetchOnWindowFocus: true });
   const createApiKey = trpc.engine.createApiKey.useMutation({ onSuccess: (result) => { setNewSecret(result.key); setKeyName(""); apiKeys.refetch(); notify("Production key created. Copy it now; it will not be shown again."); } });
   const revokeApiKey = trpc.engine.revokeApiKey.useMutation({ onSuccess: () => { apiKeys.refetch(); notify("API key revoked"); } });
   const createTill = trpc.engine.createTill.useMutation({ onSuccess: () => { tills.refetch(); setTillNumber(""); setTillName(""); setTillLocation(""); notify("Till added to your workspace"); } });
   const deleteTill = trpc.engine.deleteTill.useMutation({ onSuccess: () => { tills.refetch(); notify("Till removed"); } });
+  const depositWallet = trpc.engine.depositWallet.useMutation({ onSuccess: () => { overview.refetch(); walletDeposits.refetch(); setDepositPhone(""); setDepositAmount(""); notify("Deposit request sent. Complete the STK prompt to credit your wallet."); } });
   useEffect(() => {
     if (!loading && !user) navigate("/login");
   }, [loading, user, navigate]);
@@ -222,6 +226,12 @@ export default function Home() {
             <div className="metric-card"><div className="metric-top"><span>Collections volume</span><ArrowDownLeft size={17} /></div><div className="metric-value">{money(live.collections)}</div><div className="metric-bottom"><span className="metric-change neutral">All recorded collections</span></div><div className="metric-spark"><div className="spark-line">{chartBars.slice(-8).map((height, index) => <span key={index} style={{ height: `${height}%` }} />)}</div></div></div>
             <div className="metric-card"><div className="metric-top"><span>Successful requests</span><CheckCircle2 size={17} /></div><div className="metric-value">{live.successRate}<span>%</span></div><div className="metric-bottom"><span className="metric-change neutral">Recorded activity</span><span>{activities.length} recent events</span></div><div className="progress-track"><div className="progress-value" style={{ width: `${live.successRate}%` }} /></div><div className="progress-caption"><span>From stored transactions</span><span>{live.successRate >= 90 ? "Healthy" : live.successRate > 0 ? "Monitor" : "No data"}</span></div></div>
             <div className="metric-card"><div className="metric-top"><span>Active API keys</span><KeyRound size={17} /></div><div className="metric-value">{String(live.activeKeys).padStart(2, "0")}</div><div className="metric-bottom"><span className="metric-change neutral">{live.environment === "PRODUCTION" ? "Production" : live.environment === "SANDBOX" ? "Sandbox" : "Not configured"}</span><span>{activeKey ? `Last used ${relativeTime(activeKey.lastUsedAt)}` : "No active keys"}</span></div><button className="metric-action standalone" onClick={() => { setActiveNav("API keys"); document.getElementById("api-keys-panel")?.scrollIntoView({ behavior: "smooth", block: "center" }); }}>Manage keys <ArrowUpRight size={13} /></button></div>
+          </section>
+
+          <section className="wallet-deposit-panel panel">
+            <div className="wallet-deposit-copy"><div className="panel-kicker">WALLET OPERATIONS <span className="eyebrow-line" /></div><h3>Fund your payout wallet</h3><p>Send an STK Push to your platform M-PESA account. Your wallet is credited only after Safaricom confirms the payment.</p><div className="wallet-deposit-meta"><span><CheckCircle2 size={14} /> Live callback settlement</span><span><ShieldCheck size={14} /> Ledger tracked</span></div></div>
+            <div className="wallet-deposit-form"><Input value={depositPhone} onChange={(event) => setDepositPhone(event.target.value.replace(/\D/g, "").slice(0, 12))} placeholder="254712345678" aria-label="M-PESA phone number" inputMode="numeric" /><Input value={depositAmount} onChange={(event) => setDepositAmount(event.target.value.replace(/[^\d.]/g, ""))} placeholder="Amount in KES" aria-label="Wallet deposit amount" inputMode="decimal" /><button className="primary-button" disabled={depositWallet.isPending || !/^254\d{9}$/.test(depositPhone) || Number(depositAmount) <= 0} onClick={() => depositWallet.mutate({ phoneNumber: depositPhone, amount: Number(depositAmount) })}><WalletCards size={16} /> {depositWallet.isPending ? "Sending…" : "Deposit wallet"}</button></div>
+            <div className="wallet-deposit-history">{(walletDeposits.data ?? []).slice(0, 3).map((deposit) => <span key={String(deposit.id)} className={`deposit-chip ${String(deposit.status).toLowerCase()}`}><span>{money(Number(deposit.amount))}</span><small>{String(deposit.status) === "SUCCESS" ? "Credited" : String(deposit.status) === "FAILED" ? "Failed" : "Awaiting STK"}</small></span>)}</div>
           </section>
 
           <section className="dashboard-grid">

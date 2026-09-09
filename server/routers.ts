@@ -4,7 +4,7 @@ import { COOKIE_NAME } from "../shared/const.js";
 import { getSessionCookieOptions } from "./_core/cookies.js";
 import { systemRouter } from "./_core/systemRouter.js";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc.js";
-import { adjustWallet, calculatePlatformFee, createCollection, createPayout, createPayoutRecord, createTill, createWebhook, deleteCollection, deletePayout, deleteTill, deleteWebhook, getOverviewData, getStoredMpesaConfig, getSystemSettings, getTill, getWalletBalance, insertApiKey, insertTransaction, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayouts, listTills, listWebhooks, revokeApiKey, saveMpesaConfig, setUserSuspended, updateCollection, updatePayout, updateTill, writeAuditLog } from "./db.js";
+import { adjustWallet, calculatePlatformFee, createCollection, createPayout, createPayoutRecord, createTill, createWebhook, deleteCollection, deletePayout, deleteTill, deleteWebhook, getOverviewData, getStoredMpesaConfig, getSystemSettings, getTill, getWalletBalance, insertApiKey, insertTransaction, insertWalletDeposit, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayouts, listTills, listWalletDeposits, listWebhooks, revokeApiKey, saveMpesaConfig, setUserSuspended, updateCollection, updatePayout, updateTill, writeAuditLog } from "./db.js";
 import { createSecurityCredential, encryptSecret, generateApiKey, generatePrefixedReference, hashApiKey } from "./security.js";
 import { encryptedConfigToDaraja, registerC2bUrls, triggerB2cPayout, triggerStkPush } from "./mpesa.js";
 
@@ -30,6 +30,8 @@ export const appRouter = router({
   }),
   engine: router({
     overview: protectedProcedure.query(({ ctx }) => getOverviewData(ctx.user.id)),
+    walletBalance: protectedProcedure.query(({ ctx }) => getWalletBalance(ctx.user.id)),
+    listWalletDeposits: protectedProcedure.query(({ ctx }) => listWalletDeposits(ctx.user.id)),
     listCollections: protectedProcedure.query(({ ctx }) => listCollections(ctx.user.id)),
     createCollection: protectedProcedure.input(z.object({ phoneNumber: phoneSchema, amount: amountSchema, accountReference: z.string().regex(/^1/, "Reference must start with 1").max(64) })).mutation(({ ctx, input }) => createCollection({ userId: ctx.user.id, checkoutRequestId: `manual_${Date.now()}`, accountReference: input.accountReference, phoneNumber: input.phoneNumber, amount: input.amount })),
     updateCollection: protectedProcedure.input(z.object({ id: z.number().int().positive(), phoneNumber: phoneSchema, amount: amountSchema, accountReference: z.string().regex(/^1/).max(64) })).mutation(({ ctx, input }) => updateCollection(ctx.user.id, input.id, input)),
@@ -63,6 +65,14 @@ export const appRouter = router({
       const result = await triggerStkPush(config, { phoneNumber: input.phoneNumber, amount: input.amount, accountReference, transactionDesc: input.transactionDesc, callbackUrl: process.env.STK_CALLBACK_URL ?? "https://leetec.online/api/v1/callbacks/stk" });
       await insertTransaction({ userId: ctx.user.id, checkoutRequestId: result.CheckoutRequestID ?? result.checkoutRequestId, merchantRequestId: result.MerchantRequestID ?? result.merchantRequestId, tillId: till ? Number(till.id) : null, accountReference, phoneNumber: input.phoneNumber, amount: input.amount, status: "PENDING" });
       return { ...result, accountReference, till: till ? { id: Number(till.id), number: String(till.tillNumber), name: String(till.name) } : null, estimatedPlatformFee: calculatePlatformFee(input.amount), estimatedNetAmount: Math.max(0, input.amount - calculatePlatformFee(input.amount)) };
+    }),
+    depositWallet: protectedProcedure.input(z.object({ phoneNumber: phoneSchema, amount: z.number().positive().max(1500000) })).mutation(async ({ ctx, input }) => {
+      const stored = await getStoredConfig(ctx.user.id);
+      const config = stored ? encryptedConfigToDaraja(stored) : { consumerKey: process.env.MPESA_CONSUMER_KEY ?? "sandbox", consumerSecret: process.env.MPESA_CONSUMER_SECRET ?? "sandbox", passkey: process.env.MPESA_PASSKEY ?? "sandbox", shortcode: "4208798", environment: "SANDBOX" as const };
+      const accountReference = `1WALLET${Date.now().toString().slice(-10)}`;
+      const result = await triggerStkPush(config, { phoneNumber: input.phoneNumber, amount: input.amount, accountReference, transactionDesc: "LeeTec wallet deposit", callbackUrl: process.env.STK_CALLBACK_URL ?? "https://leetec.online/api/v1/callbacks/stk" });
+      await insertWalletDeposit({ userId: ctx.user.id, checkoutRequestId: result.CheckoutRequestID ?? result.checkoutRequestId, merchantRequestId: result.MerchantRequestID ?? result.merchantRequestId, phoneNumber: input.phoneNumber, amount: input.amount });
+      return { ...result, accountReference, status: "PENDING" };
     }),
     payout: protectedProcedure.input(z.object({ phoneNumber: phoneSchema, amount: amountSchema, commandId: z.enum(["BusinessPayment", "SalaryPayment"]).default("BusinessPayment") })).mutation(async ({ ctx, input }) => {
       const available = await getWalletBalance(ctx.user.id);

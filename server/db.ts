@@ -77,6 +77,8 @@ export async function updatePayout(userId: number, id: number, input: { recipien
 export async function deletePayout(userId: number, id: number) { return execute({ sql: "DELETE FROM payouts WHERE id = ? AND userId = ?", args: [id, userId] }); }
 
 export async function getWalletBalance(userId: number) { const result = await execute({ sql: "SELECT balance FROM wallets WHERE userId = ? LIMIT 1", args: [userId] }); return Number(result ? asRows<TursoRow>(result)[0]?.balance ?? 0 : 0); }
+export async function insertWalletDeposit(input: { userId: number; checkoutRequestId: string; merchantRequestId?: string; phoneNumber: string; amount: number }) { return execute({ sql: "INSERT INTO walletDeposits (userId, checkoutRequestId, merchantRequestId, phoneNumber, amount) VALUES (?, ?, ?, ?, ?)", args: [input.userId, input.checkoutRequestId, input.merchantRequestId ?? null, input.phoneNumber, input.amount.toFixed(2)] }); }
+export async function listWalletDeposits(userId: number) { const result = await execute({ sql: "SELECT id, checkoutRequestId, phoneNumber, amount, status, mpesaReceipt, failureReason, createdAt, settledAt FROM walletDeposits WHERE userId = ? ORDER BY datetime(createdAt) DESC LIMIT 20", args: [userId] }); return result ? asRows<TursoRow>(result) : []; }
 export async function createPayoutRecord(input: { userId: number; phoneNumber: string; amount: number; commandId: string; originatorConversationId?: string; conversationId?: string }) { return execute({ sql: "INSERT INTO payouts (userId, recipientPhone, amount, commandId, originatorConversationId, conversationId, status) VALUES (?, ?, ?, ?, ?, ?, 'PENDING')", args: [input.userId, input.phoneNumber, input.amount.toFixed(2), input.commandId, input.originatorConversationId ?? null, input.conversationId ?? null] }); }
 
 export async function listAdminUsers() { const result = await execute("SELECT u.*, COALESCE(w.balance, '0.00') AS balance FROM users u LEFT JOIN wallets w ON w.userId = u.id ORDER BY datetime(u.createdAt) DESC"); return result ? asRows<TursoRow>(result).map((row) => ({ ...userFromRow(row), balance: Number(row.balance ?? 0) })) : []; }
@@ -95,6 +97,14 @@ export async function markApiKeyUsed(keyId: number) { return execute({ sql: "UPD
 export function calculatePlatformFee(amount: number) { return amount <= 50 ? 1 : Math.round(amount * 0.015 * 100) / 100; }
 export async function updateStkCallback(input: { checkoutRequestId: string; success: boolean; failureReason?: string | null; receipt?: string | null }) {
   const db = await getTurso(); if (!db) return null;
+  const deposit = asRows<TursoRow>(await db.execute({ sql: "SELECT id, userId, amount, status FROM walletDeposits WHERE checkoutRequestId = ? LIMIT 1", args: [input.checkoutRequestId] }))[0];
+  if (deposit) {
+    const result = await db.execute({ sql: "UPDATE walletDeposits SET status = ?, failureReason = ?, mpesaReceipt = ?, settledAt = ? WHERE checkoutRequestId = ? AND status = 'PENDING'", args: [input.success ? "SUCCESS" : "FAILED", input.failureReason ?? null, input.receipt ?? null, input.success ? now() : null, input.checkoutRequestId] });
+    if (!input.success || Number(result.rowsAffected ?? 0) !== 1) return result;
+    const amount = Number(deposit.amount ?? 0); const reference = `WALLET_DEPOSIT_${String(deposit.id)}`;
+    await db.batch([{ sql: "INSERT OR IGNORE INTO wallets (userId, balance) VALUES (?, '0.00')", args: [Number(deposit.userId)] }, { sql: "UPDATE wallets SET balance = CAST(balance AS REAL) + ?, updatedAt = ? WHERE userId = ?", args: [amount.toFixed(2), now(), Number(deposit.userId)] }, { sql: "INSERT OR IGNORE INTO walletTransactions (walletId, amount, type, reference, description) SELECT id, ?, 'DEPOSIT', ?, ? FROM wallets WHERE userId = ?", args: [amount.toFixed(2), reference, `Wallet deposit via STK Push ${input.checkoutRequestId}`, Number(deposit.userId)] }], "write");
+    return result;
+  }
   const result = await db.execute({ sql: "UPDATE transactions SET status = ?, failureReason = ?, mpesaReceipt = ? WHERE checkoutRequestId = ? AND status != 'SUCCESS'", args: [input.success ? "SUCCESS" : "FAILED", input.failureReason ?? null, input.receipt ?? null, input.checkoutRequestId] });
   if (!input.success || Number(result.rowsAffected ?? 0) !== 1) return result;
   const row = asRows<TursoRow>(await db.execute({ sql: "SELECT id, userId, amount FROM transactions WHERE checkoutRequestId = ? LIMIT 1", args: [input.checkoutRequestId] }))[0];
