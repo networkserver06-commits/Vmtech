@@ -9,7 +9,22 @@ import { adjustWallet, calculatePlatformFee, createCollection, createPayout, cre
 import { createSecurityCredential, encryptSecret, generateApiKey, generatePrefixedReference, hashApiKey } from "./security.js";
 import { encryptedConfigToDaraja, registerC2bUrls, triggerB2cPayout, triggerStkPush } from "./mpesa.js";
 
-const phoneSchema = z.string().regex(/^254\d{9}$/, "Use a Kenyan phone number in 254XXXXXXXXX format");
+/** Convert common Kenyan mobile formats to the Daraja-required 254XXXXXXXXX format. */
+export function normalizeKenyanPhone(value: string): string {
+  const digits = value.trim().replace(/[\s()-]/g, "").replace(/^\+/, "");
+  const normalized = digits.startsWith("254")
+    ? digits
+    : /^(?:07|01)\d{8}$/.test(digits)
+      ? `254${digits.slice(1)}`
+      : "";
+
+  if (!/^254\d{9}$/.test(normalized)) {
+    throw new Error("Use a valid Kenyan phone number: 254XXXXXXXXX, 07XXXXXXXX, or 01XXXXXXXX");
+  }
+  return normalized;
+}
+
+const phoneSchema = z.string().trim().transform(normalizeKenyanPhone);
 const amountSchema = z.number().positive().max(1500000);
 
 async function getStoredConfig(userId: number) { return getStoredMpesaConfig(userId) as any; }

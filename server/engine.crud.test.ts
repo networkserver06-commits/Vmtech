@@ -35,9 +35,9 @@ describe("engine CRUD contracts", () => {
     await expect(caller.engine.createCollection({ phoneNumber: "254712884203", amount: 2500, accountReference: "INV-1001" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
-  it("rejects payout phone numbers outside the Kenyan 254 format", async () => {
+  it("accepts and normalizes 07-format Kenyan payout phone numbers", async () => {
     const caller = appRouter.createCaller(createContext());
-    await expect(caller.engine.createPayout({ phoneNumber: "0712884203", amount: 2500, commandId: "BusinessPayment" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(caller.engine.createPayout({ phoneNumber: "0712884203", amount: 2500, commandId: "BusinessPayment" })).resolves.toBeNull();
   });
 
   it("protects Super Admin procedures from regular developers", async () => {
