@@ -280,3 +280,46 @@ h1 { font-size: 27px; line-height: 1.1; letter-spacing: -1px; font-weight: 700; 
 .ledger-row { display: grid; grid-template-columns: minmax(0, 1fr) auto 150px; gap: 16px; align-items: center; min-height: 62px; padding: 11px 14px; background: rgba(17,26,34,.78); }.ledger-row > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }.ledger-row strong { color: #dce7e8; font: 10px 'DM Mono', monospace; }.ledger-row small { color: #71828b; font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.ledger-row > strong.money-positive { color: var(--green); }.ledger-row > strong.money-negative { color: #e39a9d; }.ledger-row > small { text-align: right; }
 @media (max-width: 700px) { .ledger-row { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }.ledger-row > small { grid-column: 1 / -1; text-align: left; }.admin-heading { align-items: flex-start; flex-direction: column; gap: 14px; }.admin-heading-actions, .environment-chip { width: 100%; }.environment-chip { justify-content: center; }.admin-metrics { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 450px) { .admin-metrics { grid-template-columns: 1fr; }.ledger-row { padding: 11px; } }
+
+/* Dashboard tab isolation: keep feature panels out of unrelated views. */
+.dashboard-tabs[data-active-tab="Overview"] .tab-wallet,
+.dashboard-tabs[data-active-tab="Overview"] .tab-api-keys,
+.dashboard-tabs[data-active-tab="Overview"] .tab-tills { display: none; }
+.dashboard-tabs[data-active-tab="Wallet"] .tab-overview,
+.dashboard-tabs[data-active-tab="Wallet"] .tab-api-keys,
+.dashboard-tabs[data-active-tab="Wallet"] .tab-tills { display: none; }
+.dashboard-tabs[data-active-tab="API keys"] .tab-overview,
+.dashboard-tabs[data-active-tab="API keys"] .tab-wallet,
+.dashboard-tabs[data-active-tab="API keys"] .tab-tills { display: none; }
+.dashboard-tabs[data-active-tab="Tills"] .tab-overview,
+.dashboard-tabs[data-active-tab="Tills"] .tab-wallet,
+.dashboard-tabs[data-active-tab="Tills"] .tab-api-keys { display: none; }
+.dashboard-tabs[data-active-tab="API keys"] .lower-grid,
+.dashboard-tabs[data-active-tab="Tills"] .lower-grid { display: block; }
+.dashboard-tabs[data-active-tab="API keys"] .activity-panel,
+.dashboard-tabs[data-active-tab="Tills"] .activity-panel { display: none; }
+.dashboard-tabs[data-active-tab="Collections"] .tab-overview,
+.dashboard-tabs[data-active-tab="Collections"] .tab-wallet,
+.dashboard-tabs[data-active-tab="Collections"] .tab-api-keys,
+.dashboard-tabs[data-active-tab="Collections"] .tab-tills,
+.dashboard-tabs[data-active-tab="Payouts"] .tab-overview,
+.dashboard-tabs[data-active-tab="Payouts"] .tab-wallet,
+.dashboard-tabs[data-active-tab="Payouts"] .tab-api-keys,
+.dashboard-tabs[data-active-tab="Payouts"] .tab-tills,
+.dashboard-tabs[data-active-tab="Webhooks"] .tab-overview,
+.dashboard-tabs[data-active-tab="Webhooks"] .tab-wallet,
+.dashboard-tabs[data-active-tab="Webhooks"] .tab-api-keys,
+.dashboard-tabs[data-active-tab="Webhooks"] .tab-tills,
+.dashboard-tabs[data-active-tab="API reference"] .tab-overview,
+.dashboard-tabs[data-active-tab="API reference"] .tab-wallet,
+.dashboard-tabs[data-active-tab="API reference"] .tab-api-keys,
+.dashboard-tabs[data-active-tab="API reference"] .tab-tills { display: none; }
+.dashboard-tabs[data-active-tab="Collections"]::after,
+.dashboard-tabs[data-active-tab="Payouts"]::after,
+.dashboard-tabs[data-active-tab="Webhooks"]::after,
+.dashboard-tabs[data-active-tab="API reference"]::after { content: "This workspace tab opens its dedicated module from the navigation."; display: block; padding: 48px 24px; border: 1px dashed var(--line-strong); border-radius: 10px; color: #81919a; text-align: center; font-size: 11px; }
+.dashboard-tabs[data-active-tab="Wallet"] .wallet-deposit-panel { margin-bottom: 0; }
+.dashboard-tabs[data-active-tab="API keys"] .lower-grid,
+.dashboard-tabs[data-active-tab="Tills"] .lower-grid { margin-bottom: 0; }
+.dashboard-tabs[data-active-tab="API keys"] .key-panel,
+.dashboard-tabs[data-active-tab="Tills"] .tills-panel { min-height: 280px; }
