@@ -161,6 +161,15 @@ export default function Home() {
           <ChevronDown size={15} className="muted-icon" />
         </div>
 
+        <div className="sidebar-quick-actions">
+          <div className="profile-row sidebar-profile">
+            <div className="profile-avatar">{user.name?.slice(0, 2).toUpperCase() ?? "ME"}</div>
+            <div className="profile-copy"><strong>{user.name ?? "Developer"}</strong><span>{user.email ?? "Signed-in account"}</span></div>
+            <MoreHorizontal size={17} className="muted-icon" />
+          </div>
+          <button className="nav-item sidebar-settings"><Settings2 size={17} /><span>Settings</span></button>
+        </div>
+
         <nav className="nav-area" aria-label="Main navigation">
           {navGroups.map((group) => (
             <div className="nav-group" key={group.label}>
@@ -190,13 +199,7 @@ export default function Home() {
             <div><strong>{live.environment === "PRODUCTION" ? "Production mode" : live.environment === "SANDBOX" ? "Sandbox mode" : "Payments not configured"}</strong><span>{live.shortcode ? `Shortcode ${live.shortcode}` : "Add M-PESA credentials in Settings"}</span></div>
             <span className="live-dot" />
           </div>
-          <button className="nav-item"><Settings2 size={17} /><span>Settings</span></button>
           <button className="nav-item"><CircleHelp size={17} /><span>Help center</span><ExternalLink size={13} className="external" /></button>
-          <div className="profile-row">
-            <div className="profile-avatar">{user.name?.slice(0, 2).toUpperCase() ?? "ME"}</div>
-            <div className="profile-copy"><strong>{user.name ?? "Developer"}</strong><span>Account #{user.accountId ?? live.accountId} · {user.email ?? "Verified account"}</span></div>
-            <MoreHorizontal size={17} className="muted-icon" />
-          </div>
         </div>
       </aside>
 
