@@ -22,7 +22,15 @@ export function registerRestRoutes(app: Express) {
     catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "Payout failed" }); }
   });
   app.post("/api/v1/callbacks/stk", async (req, res) => {
-    try { const callback = req.body?.Body?.stkCallback; if (callback?.CheckoutRequestID) await updateStkCallback({ checkoutRequestId: callback.CheckoutRequestID, success: callback.ResultCode === 0, failureReason: callback.ResultCode === 0 ? null : callback.ResultDesc, receipt: callback.CallbackMetadata?.Item?.find((item: { Name: string }) => item.Name === "MpesaReceiptNumber")?.Value?.toString() }); } finally { res.json({ ResultCode: 0, ResultDesc: "Accepted" }); }
+    try {
+      const callback = req.body?.Body?.stkCallback;
+      if (callback?.CheckoutRequestID) {
+        const success = Number(callback.ResultCode) === 0;
+        const rawReason = callback.ResultDesc ?? callback.ResultDescription ?? callback.errorMessage;
+        const failureReason = success ? null : typeof rawReason === "string" && rawReason.trim() ? rawReason.trim() : "Safaricom declined the STK request without providing a reason.";
+        await updateStkCallback({ checkoutRequestId: String(callback.CheckoutRequestID), success, failureReason, receipt: callback.CallbackMetadata?.Item?.find((item: { Name: string }) => item.Name === "MpesaReceiptNumber")?.Value?.toString() });
+      }
+    } finally { res.json({ ResultCode: 0, ResultDesc: "Accepted" }); }
   });
   app.post("/api/v1/callbacks/b2c/result", async (_req, res) => res.json({ ResultCode: 0, ResultDesc: "Accepted" }));
   app.post("/api/v1/callbacks/b2c/timeout", async (_req, res) => res.json({ ResultCode: 0, ResultDesc: "Accepted" }));
