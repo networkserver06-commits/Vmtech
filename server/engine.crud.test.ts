@@ -39,4 +39,9 @@ describe("engine CRUD contracts", () => {
     const caller = appRouter.createCaller(createContext());
     await expect(caller.engine.createPayout({ phoneNumber: "0712884203", amount: 2500, commandId: "BusinessPayment" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
+
+  it("protects Super Admin procedures from regular developers", async () => {
+    const caller = appRouter.createCaller(createContext());
+    await expect(caller.admin.users()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
 });

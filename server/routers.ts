@@ -4,10 +4,10 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
-import { createCollection, createPayout, deleteCollection, deletePayout, getDb, getOverviewData, insertApiKey, insertTransaction, listCollections, listPayouts, updateCollection, updatePayout } from "./db";
+import { adjustWallet, createCollection, createPayout, createWebhook, deleteCollection, deletePayout, deleteWebhook, getDb, getOverviewData, getSystemSettings, insertApiKey, insertTransaction, listAdminUsers, listAuditLogs, listCollections, listPayouts, listWebhooks, setUserSuspended, updateCollection, updatePayout, writeAuditLog } from "./db";
 import { mpesaConfigs, payouts, wallets } from "../drizzle/schema";
 import { createSecurityCredential, encryptSecret, generateApiKey, generatePrefixedReference, hashApiKey } from "./security";
-import { encryptedConfigToDaraja, triggerB2cPayout, triggerStkPush } from "./mpesa";
+import { encryptedConfigToDaraja, registerC2bUrls, triggerB2cPayout, triggerStkPush } from "./mpesa";
 import { eq } from "drizzle-orm";
 
 const phoneSchema = z.string().regex(/^254\d{9}$/, "Use a Kenyan phone number in 254XXXXXXXXX format");
@@ -21,7 +21,7 @@ async function getStoredConfig(userId: number) {
 }
 
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
+  if (ctx.user.role.toUpperCase() !== "ADMIN") throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
   return next();
 });
 
@@ -75,9 +75,22 @@ export const appRouter = router({
       if (db) await db.insert(payouts).values({ userId: ctx.user.id, recipientPhone: input.phoneNumber, amount: input.amount.toFixed(2), commandId: input.commandId, originatorConversationId: result.OriginatorConversationID ?? result.originatorConversationId, conversationId: result.ConversationID ?? result.conversationId, status: "PENDING" });
       return result;
     }),
+    registerC2b: protectedProcedure.input(z.object({ confirmationUrl: z.string().url(), validationUrl: z.string().url(), responseType: z.enum(["Completed", "Cancelled"]).default("Completed") })).mutation(async ({ ctx, input }) => {
+      const stored = await getStoredConfig(ctx.user.id);
+      const config = stored ? encryptedConfigToDaraja(stored) : { consumerKey: process.env.MPESA_CONSUMER_KEY ?? "sandbox", consumerSecret: process.env.MPESA_CONSUMER_SECRET ?? "sandbox", passkey: process.env.MPESA_PASSKEY ?? "sandbox", shortcode: "4208798", environment: "SANDBOX" as const };
+      return registerC2bUrls(config, input);
+    }),
+    listWebhooks: protectedProcedure.query(({ ctx }) => listWebhooks(ctx.user.id)),
+    createWebhook: protectedProcedure.input(z.object({ url: z.string().url(), secret: z.string().min(16).max(200) })).mutation(({ ctx, input }) => createWebhook({ userId: ctx.user.id, url: input.url, secretEncrypted: encryptSecret(input.secret) })),
+    deleteWebhook: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteWebhook(ctx.user.id, input.id)),
   }),
   admin: router({
     health: adminProcedure.query(() => ({ status: "operational", shortcode: "4208798", liveRequestsEnabled: process.env.MPESA_LIVE_ENABLED === "true" })),
+    users: adminProcedure.query(() => listAdminUsers()),
+    auditLogs: adminProcedure.query(() => listAuditLogs()),
+    settings: adminProcedure.query(() => getSystemSettings()),
+    setSuspended: adminProcedure.input(z.object({ userId: z.number().int().positive(), isSuspended: z.boolean() })).mutation(async ({ ctx, input }) => { const result = await setUserSuspended(input.userId, input.isSuspended); await writeAuditLog({ userId: ctx.user.id, action: input.isSuspended ? "SUSPEND_USER" : "RESTORE_USER", details: { targetUserId: input.userId } }); return result; }),
+    adjustWallet: adminProcedure.input(z.object({ userId: z.number().int().positive(), amount: amountSchema, type: z.enum(["CREDIT", "DEBIT"]), reason: z.string().min(3).max(250) })).mutation(async ({ ctx, input }) => { const result = await adjustWallet(input); await writeAuditLog({ userId: ctx.user.id, action: "MANUAL_WALLET_ADJUSTMENT", details: input }); return result; }),
   }),
 });
 

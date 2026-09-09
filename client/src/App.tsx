@@ -7,11 +7,16 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import Collections from "./pages/Collections";
 import Payouts from "./pages/Payouts";
+import Admin from "./pages/Admin";
+import Login from "./pages/Login";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/login" component={Login} />
+      <Route path="/dashboard" component={Home} />
+      <Route path="/admin" component={Admin} />
       <Route path="/collections" component={Collections} />
       <Route path="/payouts" component={Payouts} />
       <Route path="/404" component={NotFound} />

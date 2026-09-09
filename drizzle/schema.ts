@@ -8,6 +8,7 @@ export const users = mysqlTable("users", {
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: varchar("role", { length: 32 }).default("user").notNull(),
+  isSuspended: boolean("isSuspended").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -20,6 +21,16 @@ export const wallets = mysqlTable("wallets", {
   currency: varchar("currency", { length: 3 }).default("KES").notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => ({ userIdx: index("wallets_user_idx").on(table.userId) }));
+
+export const walletTransactions = mysqlTable("walletTransactions", {
+  id: int("id").autoincrement().primaryKey(),
+  walletId: int("walletId").notNull(),
+  amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
+  type: varchar("type", { length: 32 }).notNull(),
+  reference: varchar("reference", { length: 64 }).notNull().unique(),
+  description: text("description").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({ walletIdx: index("wallet_transactions_wallet_idx").on(table.walletId) }));
 
 export const mpesaConfigs = mysqlTable("mpesaConfigs", {
   id: int("id").autoincrement().primaryKey(),
@@ -90,6 +101,22 @@ export const webhookLogs = mysqlTable("webhookLogs", {
   status: varchar("status", { length: 20 }).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => ({ endpointIdx: index("webhook_logs_endpoint_idx").on(table.webhookEndpointId) }));
+
+export const systemSettings = mysqlTable("systemSettings", {
+  id: int("id").autoincrement().primaryKey(),
+  settingKey: varchar("settingKey", { length: 100 }).notNull().unique(),
+  value: text("value").notNull(),
+  description: text("description"),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const auditLogs = mysqlTable("auditLogs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  action: varchar("action", { length: 80 }).notNull(),
+  details: text("details").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({ userIdx: index("audit_logs_user_idx").on(table.userId) }));
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;

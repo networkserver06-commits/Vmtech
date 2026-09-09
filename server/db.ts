@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, apiKeys, payouts, transactions, users, wallets } from "../drizzle/schema";
+import { InsertUser, apiKeys, auditLogs, payouts, systemSettings, transactions, users, walletTransactions, wallets, webhookEndpoints } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -21,6 +21,12 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) throw new Error("User openId is required for upsert");
   const db = await getDb();
   if (!db) return;
+  const existing = (await db.select().from(users).where(eq(users.openId, user.openId)).limit(1))[0];
+  if (!existing && user.accountId === undefined) {
+    const allUsers = await db.select({ accountId: users.accountId }).from(users);
+    const maxAccountId = allUsers.reduce((max, row) => Math.max(max, Number(row.accountId ?? 0)), 0);
+    user.accountId = String(maxAccountId + 1);
+  }
   const values: InsertUser = { openId: user.openId };
   const updateSet: Record<string, unknown> = {};
   const textFields = ["name", "email", "loginMethod", "accountId"] as const;
@@ -148,4 +154,69 @@ export async function deletePayout(userId: number, id: number) {
   const db = await getDb();
   if (!db) return null;
   return db.delete(payouts).where(and(eq(payouts.id, id), eq(payouts.userId, userId)));
+}
+
+export async function listAdminUsers() {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select().from(users).orderBy(desc(users.createdAt));
+  const walletRows = await db.select().from(wallets);
+  const balances = new Map(walletRows.map((wallet) => [wallet.userId, Number(wallet.balance)]));
+  return rows.map((user) => ({ ...user, balance: balances.get(user.id) ?? 0 }));
+}
+
+export async function setUserSuspended(userId: number, isSuspended: boolean) {
+  const db = await getDb();
+  if (!db) return null;
+  return db.update(users).set({ isSuspended }).where(eq(users.id, userId));
+}
+
+export async function adjustWallet(input: { userId: number; amount: number; type: "CREDIT" | "DEBIT"; reason: string }) {
+  const db = await getDb();
+  if (!db) return null;
+  const wallet = (await db.select().from(wallets).where(eq(wallets.userId, input.userId)).limit(1))[0];
+  if (!wallet) return null;
+  const signedAmount = input.type === "CREDIT" ? input.amount : -input.amount;
+  const nextBalance = Math.max(0, Number(wallet.balance) + signedAmount);
+  await db.update(wallets).set({ balance: nextBalance.toFixed(2) }).where(eq(wallets.id, wallet.id));
+  await db.insert(walletTransactions).values({ walletId: wallet.id, amount: signedAmount.toFixed(2), type: input.type === "CREDIT" ? "ADMIN_ADJUSTMENT" : "DEBIT", reference: generateAuditReference(), description: input.reason });
+  return { balance: nextBalance };
+}
+
+export async function writeAuditLog(input: { userId: number; action: string; details: unknown }) {
+  const db = await getDb();
+  if (!db) return null;
+  return db.insert(auditLogs).values({ userId: input.userId, action: input.action, details: JSON.stringify(input.details) });
+}
+
+export async function listAuditLogs() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(100);
+}
+
+export async function getSystemSettings() {
+  const db = await getDb();
+  if (!db) return [{ settingKey: "PLATFORM_SHORTCODE", value: "4208798", description: "Primary M-PESA Paybill" }, { settingKey: "MAINTENANCE_MODE", value: "false", description: "Block new money movement requests" }];
+  return db.select().from(systemSettings);
+}
+
+function generateAuditReference() { return `1AUD${Date.now()}${Math.floor(Math.random() * 1000)}`.slice(0, 64); }
+
+export async function listWebhooks(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({ id: webhookEndpoints.id, userId: webhookEndpoints.userId, url: webhookEndpoints.url, isActive: webhookEndpoints.isActive, createdAt: webhookEndpoints.createdAt }).from(webhookEndpoints).where(eq(webhookEndpoints.userId, userId)).orderBy(desc(webhookEndpoints.createdAt));
+}
+
+export async function createWebhook(input: { userId: number; url: string; secretEncrypted: string }) {
+  const db = await getDb();
+  if (!db) return null;
+  return db.insert(webhookEndpoints).values({ userId: input.userId, url: input.url, secretEncrypted: input.secretEncrypted });
+}
+
+export async function deleteWebhook(userId: number, id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  return db.delete(webhookEndpoints).where(and(eq(webhookEndpoints.id, id), eq(webhookEndpoints.userId, userId)));
 }

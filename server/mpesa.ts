@@ -40,6 +40,15 @@ export async function triggerB2cPayout(config: DarajaConfig, input: { phoneNumbe
   return body;
 }
 
+export async function registerC2bUrls(config: DarajaConfig, input: { confirmationUrl: string; validationUrl: string; responseType?: "Completed" | "Cancelled" }) {
+  if (process.env.MPESA_LIVE_ENABLED !== "true") return { sandbox: true, ResponseDescription: "Sandbox mode — C2B URLs accepted" };
+  const token = await getDarajaToken(config);
+  const response = await fetch(`${baseUrl}/mpesa/c2b/v1/registerurl`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ ShortCode: config.shortcode, ResponseType: input.responseType ?? "Completed", ConfirmationURL: input.confirmationUrl, ValidationURL: input.validationUrl }) });
+  const body = await response.json();
+  if (!response.ok || body.ResponseCode !== "0") throw new Error(body.errorMessage || body.ResponseDescription || "Daraja C2B registration failed");
+  return body;
+}
+
 export function encryptedConfigToDaraja(config: StoredMpesaConfig): DarajaConfig {
   return { consumerKey: decryptSecret(config.consumerKeyEncrypted), consumerSecret: decryptSecret(config.consumerSecretEncrypted), passkey: decryptSecret(config.passkeyEncrypted), shortcode: config.shortcode, environment: config.environment === "PRODUCTION" ? "PRODUCTION" : "SANDBOX", initiatorName: config.b2cInitiatorName ?? undefined, initiatorPassword: config.b2cInitiatorPasswordEncrypted ? decryptSecret(config.b2cInitiatorPasswordEncrypted) : undefined };
 }

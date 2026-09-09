@@ -15,6 +15,13 @@
       "when": 1788954463803,
       "tag": "0001_colossal_grandmaster",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1788957143891,
+      "tag": "0002_nosy_rattler",
+      "breakpoints": true
     }
   ]
 }

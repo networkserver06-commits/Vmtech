@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useLocation } from "wouter";
 import {
   Activity,
   ArrowDownLeft,
@@ -94,6 +95,7 @@ function CopyButton({ value }: { value: string }) {
 
 export default function Home() {
   const [activeNav, setActiveNav] = useState("Overview");
+  const [, navigate] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -130,7 +132,7 @@ export default function Home() {
                   <button
                     key={item.label}
                     className={`nav-item ${active ? "active" : ""}`}
-                    onClick={() => { setActiveNav(item.label); setMobileOpen(false); }}
+                    onClick={() => { setActiveNav(item.label); setMobileOpen(false); if (item.label === "Collections") navigate("/collections"); if (item.label === "Payouts") navigate("/payouts"); }}
                   >
                     <Icon size={17} strokeWidth={active ? 2.3 : 1.8} />
                     <span>{item.label}</span>
@@ -174,7 +176,7 @@ export default function Home() {
         <div className="content-wrap">
           <section className="page-heading">
             <div><div className="eyebrow">OVERVIEW <span className="eyebrow-line" /></div><h1>{greeting}</h1><p>Monitor your money flows and keep your integrations moving.</p></div>
-            <div className="heading-actions"><Button className="secondary-button" onClick={() => notify("API reference is opening soon") }><Code2 size={16} /> API reference</Button><Button className="primary-button" onClick={() => notify("Collection flow ready to launch") }><Plus size={17} /> New collection</Button></div>
+            <div className="heading-actions"><Button className="secondary-button" onClick={() => notify("API reference is opening soon") }><Code2 size={16} /> API reference</Button><Button className="primary-button" onClick={() => navigate("/collections") }><Plus size={17} /> New collection</Button></div>
           </section>
 
           <section className="hero-strip">
@@ -191,11 +193,11 @@ export default function Home() {
 
           <section className="dashboard-grid">
             <div className="panel volume-panel"><div className="panel-heading"><div><h3>Transaction volume</h3><p>Gross value processed across all flows</p></div><div className="period-select">Last 30 days <ChevronDown size={14} /></div></div><div className="chart-summary"><div><strong>KES 611,370</strong><span><ArrowUpRight size={13} /> 10.6% from previous period</span></div><div className="legend"><span><i className="legend-dot collections" /> Collections</span><span><i className="legend-dot payouts" /> Payouts</span></div></div><div className="bar-chart" aria-label="Transaction volume chart">{bars.map((height, index) => <div className="bar-column" key={index}><div className={`bar collections ${index > 15 ? "emphasis" : ""}`} style={{ height: `${height}%` }} /><div className="bar payouts" style={{ height: `${Math.max(18, height * .42)}%` }} /></div>)}</div><div className="chart-axis"><span>01 Sep</span><span>08 Sep</span><span>15 Sep</span><span>22 Sep</span><span>30 Sep</span></div></div>
-            <div className="panel quick-panel"><div className="panel-heading"><div><h3>Quick actions</h3><p>Common developer tasks</p></div><Zap size={17} className="gold-icon" /></div><div className="quick-list"><button onClick={() => notify("Collection builder is ready")}><span className="quick-icon green"><ArrowDownLeft size={17} /></span><span><strong>Collect payment</strong><small>Trigger an STK Push</small></span><ArrowUpRight size={15} /></button><button onClick={() => notify("Payout request form is ready")}><span className="quick-icon blue"><Send size={17} /></span><span><strong>Send payout</strong><small>Disburse via B2C</small></span><ArrowUpRight size={15} /></button><button onClick={() => setActiveNav("Webhooks")}><span className="quick-icon purple"><Webhook size={17} /></span><span><strong>Configure webhook</strong><small>Receive event updates</small></span><ArrowUpRight size={15} /></button></div><div className="quick-footer"><Terminal size={15} /> <span>Need help integrating?</span><button onClick={() => setActiveNav("API reference")}>Read the docs <ArrowUpRight size={13} /></button></div></div>
+            <div className="panel quick-panel"><div className="panel-heading"><div><h3>Quick actions</h3><p>Common developer tasks</p></div><Zap size={17} className="gold-icon" /></div><div className="quick-list"><button onClick={() => navigate("/collections")}><span className="quick-icon green"><ArrowDownLeft size={17} /></span><span><strong>Collect payment</strong><small>Trigger an STK Push</small></span><ArrowUpRight size={15} /></button><button onClick={() => navigate("/payouts")}><span className="quick-icon blue"><Send size={17} /></span><span><strong>Send payout</strong><small>Disburse via B2C</small></span><ArrowUpRight size={15} /></button><button onClick={() => setActiveNav("Webhooks")}><span className="quick-icon purple"><Webhook size={17} /></span><span><strong>Configure webhook</strong><small>Receive event updates</small></span><ArrowUpRight size={15} /></button></div><div className="quick-footer"><Terminal size={15} /> <span>Need help integrating?</span><button onClick={() => setActiveNav("API reference")}>Read the docs <ArrowUpRight size={13} /></button></div></div>
           </section>
 
           <section className="lower-grid">
-            <div className="panel activity-panel"><div className="panel-heading"><div><h3>Recent activity</h3><p>Your latest collections and payouts</p></div><button className="panel-link" onClick={() => setActiveNav("Collections")}>View all <ArrowUpRight size={14} /></button></div><div className="activity-table"><div className="table-head"><span>Reference</span><span>Type</span><span>Amount</span><span>Status</span><span>Time</span><span /></div>{transactions.map((tx) => <div className="table-row" key={tx.id}><div className="ref-cell"><div className={`tx-icon ${tx.type === "STK Push" ? "collection" : "payout"}`}>{tx.type === "STK Push" ? <ArrowDownLeft size={14} /> : <Send size={14} />}</div><div><strong>{tx.id}</strong><small>{tx.detail}</small></div></div><span className="type-cell">{tx.type}</span><strong className={tx.amount.startsWith("+") ? "amount-positive" : "amount-negative"}>{tx.amount}</strong><StatusBadge status={tx.status} /><span className="time-cell">{tx.time}</span><button className="row-more" aria-label={`More actions for ${tx.id}`}><MoreHorizontal size={16} /></button></div>)}</div></div>
+            <div className="panel activity-panel"><div className="panel-heading"><div><h3>Recent activity</h3><p>Your latest collections and payouts</p></div><button className="panel-link" onClick={() => navigate("/collections")}>View all <ArrowUpRight size={14} /></button></div><div className="activity-table"><div className="table-head"><span>Reference</span><span>Type</span><span>Amount</span><span>Status</span><span>Time</span><span /></div>{transactions.map((tx) => <div className="table-row" key={tx.id}><div className="ref-cell"><div className={`tx-icon ${tx.type === "STK Push" ? "collection" : "payout"}`}>{tx.type === "STK Push" ? <ArrowDownLeft size={14} /> : <Send size={14} />}</div><div><strong>{tx.id}</strong><small>{tx.detail}</small></div></div><span className="type-cell">{tx.type}</span><strong className={tx.amount.startsWith("+") ? "amount-positive" : "amount-negative"}>{tx.amount}</strong><StatusBadge status={tx.status} /><span className="time-cell">{tx.time}</span><button className="row-more" aria-label={`More actions for ${tx.id}`}><MoreHorizontal size={16} /></button></div>)}</div></div>
             <div className="panel key-panel"><div className="panel-heading"><div><h3>Production key</h3><p>Use this key in your server</p></div><KeyRound size={17} className="gold-icon" /></div><div className="key-preview"><div className="key-label"><span>Secret key</span><button onClick={() => setShowSecret(!showSecret)}>{showSecret ? <EyeOff size={14} /> : <Eye size={14} />} {showSecret ? "Hide" : "Reveal"}</button></div><div className="secret-value">{showSecret ? "sk_live_51M2••••••••••••••••9XwP" : "sk_live_51M2••••••••••••••••••••"}<CopyButton value="sk_live_51M2_example_key" /></div><div className="key-meta"><span><span className="live-dot" /> Active</span><span>Created 12 days ago</span></div></div><div className="key-warning"><ShieldCheck size={16} /><span>Keep your secret key private. It can make live API requests.</span></div><button className="secondary-button full-width" onClick={() => notify("Key creation flow opened")}><Plus size={16} /> Create another key</button></div>
           </section>
 
