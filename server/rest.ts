@@ -14,7 +14,7 @@ async function authenticate(req: Request, res: Response) {
 
 export function registerRestRoutes(app: Express) {
   app.post("/api/v1/stkpush", async (req, res) => {
-    try { const user = await authenticate(req, res); if (!user) return; const caller = appRouter.createCaller({ user, req: req as never, res: res as never }); res.json(await caller.engine.stkPush({ phoneNumber: req.body.phoneNumber, amount: Number(req.body.amount), accountReference: req.body.accountReference, transactionDesc: req.body.transactionDesc })); }
+    try { const user = await authenticate(req, res); if (!user) return; const caller = appRouter.createCaller({ user, req: req as never, res: res as never }); res.json(await caller.engine.stkPush({ phoneNumber: req.body.phoneNumber, amount: Number(req.body.amount), tillId: req.body.tillId ? Number(req.body.tillId) : undefined, accountReference: req.body.accountReference, transactionDesc: req.body.transactionDesc })); }
     catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "STK Push failed" }); }
   });
   app.post("/api/v1/payout", async (req, res) => {

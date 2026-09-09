@@ -4,7 +4,7 @@ import { COOKIE_NAME } from "../shared/const.js";
 import { getSessionCookieOptions } from "./_core/cookies.js";
 import { systemRouter } from "./_core/systemRouter.js";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc.js";
-import { adjustWallet, createCollection, createPayout, createPayoutRecord, createWebhook, deleteCollection, deletePayout, deleteWebhook, getOverviewData, getStoredMpesaConfig, getSystemSettings, getWalletBalance, insertApiKey, insertTransaction, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayouts, listWebhooks, revokeApiKey, saveMpesaConfig, setUserSuspended, updateCollection, updatePayout, writeAuditLog } from "./db.js";
+import { adjustWallet, calculatePlatformFee, createCollection, createPayout, createPayoutRecord, createTill, createWebhook, deleteCollection, deletePayout, deleteTill, deleteWebhook, getOverviewData, getStoredMpesaConfig, getSystemSettings, getTill, getWalletBalance, insertApiKey, insertTransaction, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayouts, listTills, listWebhooks, revokeApiKey, saveMpesaConfig, setUserSuspended, updateCollection, updatePayout, updateTill, writeAuditLog } from "./db.js";
 import { createSecurityCredential, encryptSecret, generateApiKey, generatePrefixedReference, hashApiKey } from "./security.js";
 import { encryptedConfigToDaraja, registerC2bUrls, triggerB2cPayout, triggerStkPush } from "./mpesa.js";
 
@@ -45,17 +45,24 @@ export const appRouter = router({
     }),
     listApiKeys: protectedProcedure.query(({ ctx }) => listApiKeys(ctx.user.id)),
     revokeApiKey: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => revokeApiKey(ctx.user.id, input.id)),
+    listTills: protectedProcedure.query(({ ctx }) => listTills(ctx.user.id)),
+    createTill: protectedProcedure.input(z.object({ tillNumber: z.string().regex(/^\d{5,8}$/, "Enter a valid M-PESA till number"), name: z.string().min(2).max(80), location: z.string().max(120).optional() })).mutation(({ ctx, input }) => createTill({ userId: ctx.user.id, ...input })),
+    updateTill: protectedProcedure.input(z.object({ id: z.number().int().positive(), tillNumber: z.string().regex(/^\d{5,8}$/), name: z.string().min(2).max(80), location: z.string().max(120).optional(), isActive: z.boolean() })).mutation(({ ctx, input }) => updateTill(ctx.user.id, input.id, input)),
+    deleteTill: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteTill(ctx.user.id, input.id)),
     saveMpesaConfig: protectedProcedure.input(z.object({ shortcode: z.string().min(4).max(32).default("4208798"), consumerKey: z.string().min(1), consumerSecret: z.string().min(1), passkey: z.string().min(1), b2cInitiatorName: z.string().optional(), b2cInitiatorPassword: z.string().optional(), environment: z.enum(["SANDBOX", "PRODUCTION"]).default("SANDBOX") })).mutation(async ({ ctx, input }) => {
       await saveMpesaConfig({ userId: ctx.user.id, shortcode: input.shortcode, consumerKeyEncrypted: encryptSecret(input.consumerKey), consumerSecretEncrypted: encryptSecret(input.consumerSecret), passkeyEncrypted: encryptSecret(input.passkey), b2cInitiatorName: input.b2cInitiatorName, b2cInitiatorPasswordEncrypted: input.b2cInitiatorPassword ? encryptSecret(input.b2cInitiatorPassword) : null, environment: input.environment });
       return { success: true, environment: input.environment };
     }),
-    stkPush: protectedProcedure.input(z.object({ phoneNumber: phoneSchema, amount: amountSchema, accountReference: z.string().regex(/^1/, "Reference must start with 1").max(64).optional(), transactionDesc: z.string().max(100).default("LeeTec collection") })).mutation(async ({ ctx, input }) => {
+    stkPush: protectedProcedure.input(z.object({ phoneNumber: phoneSchema, amount: amountSchema, tillId: z.number().int().positive().optional(), accountReference: z.string().regex(/^1/, "Reference must start with 1").max(64).optional(), transactionDesc: z.string().max(100).default("LeeTec collection") })).mutation(async ({ ctx, input }) => {
       const stored = await getStoredConfig(ctx.user.id);
-      const config = stored ? encryptedConfigToDaraja(stored) : { consumerKey: process.env.MPESA_CONSUMER_KEY ?? "sandbox", consumerSecret: process.env.MPESA_CONSUMER_SECRET ?? "sandbox", passkey: process.env.MPESA_PASSKEY ?? "sandbox", shortcode: "4208798", environment: "SANDBOX" as const };
+      const baseConfig = stored ? encryptedConfigToDaraja(stored) : { consumerKey: process.env.MPESA_CONSUMER_KEY ?? "sandbox", consumerSecret: process.env.MPESA_CONSUMER_SECRET ?? "sandbox", passkey: process.env.MPESA_PASSKEY ?? "sandbox", shortcode: "4208798", environment: "SANDBOX" as const };
+      const till = input.tillId ? await getTill(ctx.user.id, input.tillId) : undefined;
+      if (input.tillId && (!till || !Boolean(till.isActive))) throw new TRPCError({ code: "BAD_REQUEST", message: "Selected till is not active or does not belong to this account" });
+      const config = till ? { ...baseConfig, shortcode: String(till.tillNumber) } : baseConfig;
       const accountReference = input.accountReference ?? generatePrefixedReference();
       const result = await triggerStkPush(config, { phoneNumber: input.phoneNumber, amount: input.amount, accountReference, transactionDesc: input.transactionDesc, callbackUrl: process.env.STK_CALLBACK_URL ?? "https://leetec.online/api/v1/callbacks/stk" });
-      await insertTransaction({ userId: ctx.user.id, checkoutRequestId: result.CheckoutRequestID ?? result.checkoutRequestId, merchantRequestId: result.MerchantRequestID ?? result.merchantRequestId, accountReference, phoneNumber: input.phoneNumber, amount: input.amount, status: "PENDING" });
-      return { ...result, accountReference };
+      await insertTransaction({ userId: ctx.user.id, checkoutRequestId: result.CheckoutRequestID ?? result.checkoutRequestId, merchantRequestId: result.MerchantRequestID ?? result.merchantRequestId, tillId: till ? Number(till.id) : null, accountReference, phoneNumber: input.phoneNumber, amount: input.amount, status: "PENDING" });
+      return { ...result, accountReference, till: till ? { id: Number(till.id), number: String(till.tillNumber), name: String(till.name) } : null, estimatedPlatformFee: calculatePlatformFee(input.amount), estimatedNetAmount: Math.max(0, input.amount - calculatePlatformFee(input.amount)) };
     }),
     payout: protectedProcedure.input(z.object({ phoneNumber: phoneSchema, amount: amountSchema, commandId: z.enum(["BusinessPayment", "SalaryPayment"]).default("BusinessPayment") })).mutation(async ({ ctx, input }) => {
       const available = await getWalletBalance(ctx.user.id);
@@ -66,9 +73,12 @@ export const appRouter = router({
       await createPayoutRecord({ userId: ctx.user.id, phoneNumber: input.phoneNumber, amount: input.amount, commandId: input.commandId, originatorConversationId: result.OriginatorConversationID ?? result.originatorConversationId, conversationId: result.ConversationID ?? result.conversationId });
       return result;
     }),
-    registerC2b: protectedProcedure.input(z.object({ confirmationUrl: z.string().url(), validationUrl: z.string().url(), responseType: z.enum(["Completed", "Cancelled"]).default("Completed") })).mutation(async ({ ctx, input }) => {
+    registerC2b: protectedProcedure.input(z.object({ tillId: z.number().int().positive().optional(), confirmationUrl: z.string().url(), validationUrl: z.string().url(), responseType: z.enum(["Completed", "Cancelled"]).default("Completed") })).mutation(async ({ ctx, input }) => {
       const stored = await getStoredConfig(ctx.user.id);
-      const config = stored ? encryptedConfigToDaraja(stored) : { consumerKey: process.env.MPESA_CONSUMER_KEY ?? "sandbox", consumerSecret: process.env.MPESA_CONSUMER_SECRET ?? "sandbox", passkey: process.env.MPESA_PASSKEY ?? "sandbox", shortcode: "4208798", environment: "SANDBOX" as const };
+      const baseConfig = stored ? encryptedConfigToDaraja(stored) : { consumerKey: process.env.MPESA_CONSUMER_KEY ?? "sandbox", consumerSecret: process.env.MPESA_CONSUMER_SECRET ?? "sandbox", passkey: process.env.MPESA_PASSKEY ?? "sandbox", shortcode: "4208798", environment: "SANDBOX" as const };
+      const till = input.tillId ? await getTill(ctx.user.id, input.tillId) : undefined;
+      if (input.tillId && (!till || !Boolean(till.isActive))) throw new TRPCError({ code: "BAD_REQUEST", message: "Selected till is not active or does not belong to this account" });
+      const config = till ? { ...baseConfig, shortcode: String(till.tillNumber) } : baseConfig;
       return registerC2bUrls(config, input);
     }),
     listWebhooks: protectedProcedure.query(({ ctx }) => listWebhooks(ctx.user.id)),

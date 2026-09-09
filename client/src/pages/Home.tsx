@@ -104,12 +104,18 @@ export default function Home() {
   const [showSecret, setShowSecret] = useState(false);
   const [keyName, setKeyName] = useState("");
   const [newSecret, setNewSecret] = useState<string | null>(null);
+  const [tillNumber, setTillNumber] = useState("");
+  const [tillName, setTillName] = useState("");
+  const [tillLocation, setTillLocation] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const { user, loading } = useAuth();
   const overview = trpc.engine.overview.useQuery(undefined, { enabled: Boolean(user), refetchInterval: 5000, refetchOnWindowFocus: true });
   const apiKeys = trpc.engine.listApiKeys.useQuery(undefined, { enabled: Boolean(user), refetchOnWindowFocus: true });
+  const tills = trpc.engine.listTills.useQuery(undefined, { enabled: Boolean(user), refetchOnWindowFocus: true });
   const createApiKey = trpc.engine.createApiKey.useMutation({ onSuccess: (result) => { setNewSecret(result.key); setKeyName(""); apiKeys.refetch(); notify("Production key created. Copy it now; it will not be shown again."); } });
   const revokeApiKey = trpc.engine.revokeApiKey.useMutation({ onSuccess: () => { apiKeys.refetch(); notify("API key revoked"); } });
+  const createTill = trpc.engine.createTill.useMutation({ onSuccess: () => { tills.refetch(); setTillNumber(""); setTillName(""); setTillLocation(""); notify("Till added to your workspace"); } });
+  const deleteTill = trpc.engine.deleteTill.useMutation({ onSuccess: () => { tills.refetch(); notify("Till removed"); } });
   useEffect(() => {
     if (!loading && !user) navigate("/login");
   }, [loading, user, navigate]);
@@ -123,6 +129,7 @@ export default function Home() {
   const activities = live.transactions as Array<Record<string, unknown>>;
   const visibleKeys = (apiKeys.data ?? []) as Array<Record<string, unknown>>;
   const activeKey = visibleKeys.find((key) => Boolean(key.isActive));
+  const visibleTills = (tills.data ?? []) as Array<Record<string, unknown>>;
   const chartBars = useMemo(() => {
     const values = activities.slice(0, 12).map((item) => Number(item.amount ?? 0));
     const max = Math.max(...values, 1);
@@ -223,6 +230,13 @@ export default function Home() {
           <section className="lower-grid">
             <div className="panel activity-panel"><div className="panel-heading"><div><h3>Recent activity</h3><p>Your latest collections and payouts</p></div><button className="panel-link" onClick={() => navigate("/collections")}>View all <ArrowUpRight size={14} /></button></div><div className="activity-table"><div className="table-head"><span>Reference</span><span>Type</span><span>Amount</span><span>Status</span><span>Time</span><span /></div>{activities.length ? activities.map((tx) => { const payout = tx.kind === "payout"; const status = String(tx.status ?? "PENDING"); const amount = Number(tx.amount ?? 0); const reference = String(tx.checkoutRequestId ?? tx.conversationId ?? tx.id ?? "—"); const detail = String(tx.phoneNumber ?? tx.recipientPhone ?? tx.accountReference ?? "—"); const displayStatus = status === "SUCCESS" ? "Success" : status === "FAILED" ? "Failed" : "Pending"; return <div className="table-row" key={`${tx.kind}-${tx.id}`}><div className="ref-cell"><div className={`tx-icon ${payout ? "payout" : "collection"}`}>{payout ? <Send size={14} /> : <ArrowDownLeft size={14} />}</div><div><strong>{reference}</strong><small>{detail}</small></div></div><span className="type-cell">{payout ? "B2C payout" : "STK Push"}</span><strong className={payout ? "amount-negative" : "amount-positive"}>{payout ? "−" : "+"} {money(amount)}</strong><StatusBadge status={displayStatus} /><span className="time-cell">{relativeTime(tx.createdAt)}</span><button className="row-more" aria-label={`More actions for ${reference}`}><MoreHorizontal size={16} /></button></div>; }) : <div className="live-empty">No M-PESA transactions yet. New activity will appear here automatically.</div>}</div></div>
             <div className="panel key-panel"><div className="panel-heading"><div><h3>Developer API keys</h3><p>Production secrets are shown once at creation.</p></div><KeyRound size={17} className="gold-icon" /></div><div className="key-preview"><div className="key-label"><span>{activeKey ? String(activeKey.name) : "No active key"}</span>{activeKey && <button onClick={() => revokeApiKey.mutate({ id: Number(activeKey.id) })}>Revoke</button>}</div><div className="secret-value">{newSecret ?? (activeKey ? `${String(activeKey.keyPrefix)}••••••••••••••••` : "Create a key to receive a secret")}{newSecret && <CopyButton value={newSecret} />}</div><div className="key-meta"><span><span className="live-dot" /> {activeKey ? "Active" : "Not configured"}</span><span>{activeKey ? `Created ${relativeTime(activeKey.createdAt)}` : "No keys created"}</span></div></div><div className="key-warning"><ShieldCheck size={16} /><span>Store the secret securely. It cannot be retrieved after this screen.</span></div><div className="key-create-row"><Input value={keyName} onChange={(event) => setKeyName(event.target.value)} placeholder="Key name, e.g. Production API" aria-label="New API key name" /><button className="secondary-button" disabled={createApiKey.isPending || keyName.trim().length < 2} onClick={() => createApiKey.mutate({ name: keyName.trim() })}><Plus size={16} /> Create key</button></div></div>
+          </section>
+
+          <section className="panel tills-panel">
+            <div className="panel-heading"><div><h3>Merchant tills</h3><p>Route platform API payments directly to your owned till numbers.</p></div><span className="till-count">{visibleTills.length} configured</span></div>
+            <div className="till-list">{visibleTills.length ? visibleTills.map((till) => <div className="till-row" key={String(till.id)}><div className="till-icon"><Webhook size={15} /></div><div className="till-details"><strong>{String(till.name)}</strong><span>{String(till.tillNumber)}{till.location ? ` · ${String(till.location)}` : ""}</span></div><span className={`till-status ${Boolean(till.isActive) ? "active" : "inactive"}`}>{Boolean(till.isActive) ? "Active" : "Inactive"}</span><button className="row-more" aria-label={`Remove ${String(till.name)}`} onClick={() => deleteTill.mutate({ id: Number(till.id) })}><X size={14} /></button></div>) : <div className="till-empty">No tills configured. Add one to route API payments directly to your business.</div>}</div>
+            <div className="till-create-row"><Input value={tillName} onChange={(event) => setTillName(event.target.value)} placeholder="Till name" aria-label="Till name" /><Input value={tillNumber} onChange={(event) => setTillNumber(event.target.value.replace(/\D/g, "").slice(0, 8))} placeholder="Till number" aria-label="Till number" inputMode="numeric" /><Input value={tillLocation} onChange={(event) => setTillLocation(event.target.value)} placeholder="Location (optional)" aria-label="Till location" /><button className="secondary-button" disabled={createTill.isPending || tillName.trim().length < 2 || !/^\d{5,8}$/.test(tillNumber)} onClick={() => createTill.mutate({ name: tillName.trim(), tillNumber, location: tillLocation.trim() || undefined })}><Plus size={16} /> Add till</button></div>
+            <div className="fee-note"><ShieldCheck size={15} /><span>Platform fee: KES 1 for payments up to KES 50, then 1.5%. It is charged from your dashboard wallet after a successful STK Push.</span></div>
           </section>
 
           <footer className="footer-note"><span><span className="footer-dot" /> All systems operational</span><span>LeeTec Engine v1.0 <span className="footer-sep">•</span> <button onClick={() => notify("Status page is opening soon")}>Status</button> <span className="footer-sep">•</span> <button onClick={() => notify("Documentation is opening soon")}>Documentation</button></span></footer>

@@ -245,3 +245,24 @@ h1 { font-size: 27px; line-height: 1.1; letter-spacing: -1px; font-weight: 700; 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
+
+.tills-panel { margin-top: 16px; }
+.till-count { color: var(--lime); background: rgba(197,245,110,.08); border: 1px solid rgba(197,245,110,.15); border-radius: 5px; padding: 5px 8px; font-size: 9px; white-space: nowrap; }
+.till-list { display: grid; gap: 7px; margin: 18px 0 14px; }
+.till-row { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 7px 8px; border: 1px solid rgba(189,211,224,.08); border-radius: 8px; background: rgba(255,255,255,.018); }
+.till-icon { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 7px; color: var(--lime); background: rgba(197,245,110,.08); flex-shrink: 0; }
+.till-details { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
+.till-details strong { color: #d9e5e5; font-size: 10px; }
+.till-details span { color: #74858e; font: 9px 'DM Mono', monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.till-status { padding: 4px 7px; border-radius: 5px; font-size: 9px; font-weight: 700; }
+.till-status.active { color: var(--green); background: rgba(89,217,154,.09); }
+.till-status.inactive { color: var(--orange); background: rgba(246,184,95,.09); }
+.till-empty { padding: 16px; border: 1px dashed rgba(189,211,224,.14); border-radius: 8px; color: #71818a; text-align: center; font-size: 10px; }
+.till-create-row { display: flex; gap: 7px; }
+.till-create-row input { min-width: 0; flex: 1; height: 36px; border: 1px solid var(--line); border-radius: 7px; padding: 0 9px; color: var(--text); background: rgba(0,0,0,.16); font-size: 10px; }
+.till-create-row input::placeholder { color: #63747d; }
+.till-create-row button { flex-shrink: 0; }
+.fee-note { display: flex; gap: 8px; align-items: flex-start; margin-top: 13px; color: #7d8d95; font-size: 9px; line-height: 1.5; }
+.fee-note svg { color: var(--lime); flex-shrink: 0; }
+@media (max-width: 700px) { .till-create-row { flex-wrap: wrap; }.till-create-row input { flex: 1 1 calc(50% - 4px); }.till-create-row button { flex: 1 1 100%; } }
+@media (max-width: 450px) { .till-row { gap: 7px; }.till-status { display: none; }.till-create-row { flex-direction: column; }.till-create-row input, .till-create-row button { flex: auto; width: 100%; } }
