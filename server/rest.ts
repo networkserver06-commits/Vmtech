@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { appRouter } from "./routers.js";
-import { authenticateApiKey, getUserById, markApiKeyUsed, updateStkCallback } from "./db.js";
+import { authenticateApiKey, getUserById, markApiKeyUsed, recordC2bConfirmation, updateStkCallback } from "./db.js";
 import { hashApiKey } from "./security.js";
 
 async function authenticate(req: Request, res: Response) {
@@ -26,6 +26,6 @@ export function registerRestRoutes(app: Express) {
   });
   app.post("/api/v1/callbacks/b2c/result", async (_req, res) => res.json({ ResultCode: 0, ResultDesc: "Accepted" }));
   app.post("/api/v1/callbacks/b2c/timeout", async (_req, res) => res.json({ ResultCode: 0, ResultDesc: "Accepted" }));
-  app.post("/api/v1/callbacks/c2b/confirmation", async (_req, res) => res.json({ ResultCode: 0, ResultDesc: "Accepted" }));
+  app.post("/api/v1/callbacks/c2b/confirmation", async (req, res) => { try { const body = req.body ?? {}; await recordC2bConfirmation({ tillNumber: String(body.BusinessShortCode ?? body.ShortCode ?? ""), transactionId: String(body.TransID ?? ""), amount: Number(body.TransAmount ?? 0), phoneNumber: String(body.MSISDN ?? ""), accountReference: String(body.BillRefNumber ?? body.InvoiceNumber ?? "") }); } finally { res.json({ ResultCode: 0, ResultDesc: "Accepted" }); } });
   app.post("/api/v1/callbacks/c2b/validation", async (_req, res) => res.json({ ResultCode: 0, ResultDesc: "Accepted" }));
 }
