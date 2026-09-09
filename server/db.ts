@@ -1,222 +1,83 @@
-import { and, desc, eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, apiKeys, auditLogs, payouts, systemSettings, transactions, users, walletTransactions, wallets, webhookEndpoints } from "../drizzle/schema";
+import type { User } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { asRows, execute, getTurso, type TursoRow } from "./turso";
 
-let _db: ReturnType<typeof drizzle> | null = null;
+const now = () => new Date().toISOString();
+const userFromRow = (row: TursoRow) => ({ ...row, isSuspended: Boolean(row.isSuspended), createdAt: new Date(String(row.createdAt)), updatedAt: new Date(String(row.updatedAt)), lastSignedIn: new Date(String(row.lastSignedIn)) }) as unknown as User;
 
-export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
-    try {
-      _db = drizzle(process.env.DATABASE_URL);
-    } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
-      _db = null;
-    }
-  }
-  return _db;
-}
+export async function getDb() { return getTurso(); }
 
-export async function upsertUser(user: InsertUser): Promise<void> {
+export async function upsertUser(user: { openId: string; accountId?: string | null; name?: string | null; email?: string | null; loginMethod?: string | null; role?: string; lastSignedIn?: Date }) {
   if (!user.openId) throw new Error("User openId is required for upsert");
-  const db = await getDb();
+  const db = await getTurso();
   if (!db) return;
-  const existing = (await db.select().from(users).where(eq(users.openId, user.openId)).limit(1))[0];
-  if (!existing && user.accountId === undefined) {
-    const allUsers = await db.select({ accountId: users.accountId }).from(users);
-    const maxAccountId = allUsers.reduce((max, row) => Math.max(max, Number(row.accountId ?? 0)), 0);
-    user.accountId = String(maxAccountId + 1);
+  const existing = asRows<TursoRow>(await db.execute({ sql: "SELECT * FROM users WHERE openId = ? LIMIT 1", args: [user.openId] }))[0];
+  let accountId = user.accountId ?? (existing?.accountId as string | undefined);
+  if (!existing && !accountId) {
+    const max = asRows<TursoRow>(await db.execute("SELECT MAX(CAST(accountId AS INTEGER)) AS maxAccountId FROM users"))[0]?.maxAccountId;
+    accountId = String(Number(max ?? 0) + 1);
   }
-  const values: InsertUser = { openId: user.openId };
-  const updateSet: Record<string, unknown> = {};
-  const textFields = ["name", "email", "loginMethod", "accountId"] as const;
-  for (const field of textFields) {
-    if (user[field] !== undefined) {
-      values[field] = user[field] ?? null;
-      updateSet[field] = user[field] ?? null;
-    }
-  }
-  if (user.lastSignedIn !== undefined) { values.lastSignedIn = user.lastSignedIn; updateSet.lastSignedIn = user.lastSignedIn; }
-  if (user.role !== undefined) { values.role = user.role; updateSet.role = user.role; }
-  else if (user.openId === ENV.ownerOpenId) { values.role = "admin"; updateSet.role = "admin"; }
-  values.lastSignedIn ??= new Date();
-  updateSet.lastSignedIn ??= new Date();
-  await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
+  const signedIn = (user.lastSignedIn ?? new Date()).toISOString();
+  await db.execute({ sql: `INSERT INTO users (openId, accountId, name, email, loginMethod, role, lastSignedIn, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(openId) DO UPDATE SET accountId=excluded.accountId, name=excluded.name, email=excluded.email, loginMethod=excluded.loginMethod, role=excluded.role, lastSignedIn=excluded.lastSignedIn, updatedAt=excluded.updatedAt`, args: [user.openId, accountId ?? null, user.name ?? null, user.email ?? null, user.loginMethod ?? null, user.role ?? (user.openId === ENV.ownerOpenId ? "admin" : "user"), signedIn, now()] });
+  const saved = asRows<TursoRow>(await db.execute({ sql: "SELECT id FROM users WHERE openId = ?", args: [user.openId] }))[0];
+  if (saved) await db.execute({ sql: "INSERT OR IGNORE INTO wallets (userId) VALUES (?)", args: [Number(saved.id)] });
 }
 
 export async function getUserByOpenId(openId: string) {
-  const db = await getDb();
-  if (!db) return undefined;
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-  return result[0];
-}
-
-export async function getOverviewData(userId: number) {
-  const db = await getDb();
-  if (!db) {
-    return {
-      balance: 128450,
-      collections: 482920,
-      payouts: 128450,
-      successRate: 98.7,
-      activeKeys: 2,
-      accountId: "10482910",
-      transactions: [],
-    };
-  }
-  const [wallet, collectionRows, payoutRows, keyRows, recent] = await Promise.all([
-    db.select().from(wallets).where(eq(wallets.userId, userId)).limit(1),
-    db.select().from(transactions).where(eq(transactions.userId, userId)),
-    db.select().from(payouts).where(eq(payouts.userId, userId)),
-    db.select().from(apiKeys).where(and(eq(apiKeys.userId, userId), eq(apiKeys.isActive, true))),
-    db.select().from(transactions).where(eq(transactions.userId, userId)).orderBy(desc(transactions.createdAt)).limit(10),
-  ]);
-  const collectionTotal = collectionRows.reduce((sum, row) => sum + Number(row.amount), 0);
-  const payoutTotal = payoutRows.reduce((sum, row) => sum + Number(row.amount), 0);
-  const successful = [...collectionRows, ...payoutRows].filter((row) => row.status === "SUCCESS").length;
-  const total = collectionRows.length + payoutRows.length;
-  const user = await getUserById(userId);
-  return {
-    balance: Number(wallet[0]?.balance ?? 0),
-    collections: collectionTotal,
-    payouts: payoutTotal,
-    successRate: total ? Math.round((successful / total) * 1000) / 10 : 100,
-    activeKeys: keyRows.length,
-    accountId: user?.accountId ?? "10482910",
-    transactions: recent,
-  };
+  const db = await getTurso(); if (!db) return undefined;
+  const row = asRows<TursoRow>(await db.execute({ sql: "SELECT * FROM users WHERE openId = ? LIMIT 1", args: [openId] }))[0];
+  return row ? userFromRow(row) : undefined;
 }
 
 export async function getUserById(id: number) {
-  const db = await getDb();
-  if (!db) return undefined;
-  const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
-  return result[0];
+  const db = await getTurso(); if (!db) return undefined;
+  const row = asRows<TursoRow>(await db.execute({ sql: "SELECT * FROM users WHERE id = ? LIMIT 1", args: [id] }))[0];
+  return row ? userFromRow(row) : undefined;
 }
 
-export async function insertApiKey(input: { userId: number; name: string; keyHash: string }) {
-  const db = await getDb();
-  if (!db) return null;
-  const result = await db.insert(apiKeys).values({ userId: input.userId, name: input.name, keyHash: input.keyHash, keyPrefix: "sk_live_" });
-  return result;
+export async function getOverviewData(userId: number) {
+  const db = await getTurso();
+  if (!db) return { balance: 0, collections: 0, payouts: 0, successRate: 100, activeKeys: 0, accountId: "1", transactions: [] };
+  const [wallet, collections, payoutRows, keys, recent] = await Promise.all([
+    db.execute({ sql: "SELECT balance FROM wallets WHERE userId = ? LIMIT 1", args: [userId] }),
+    db.execute({ sql: "SELECT * FROM transactions WHERE userId = ?", args: [userId] }),
+    db.execute({ sql: "SELECT * FROM payouts WHERE userId = ?", args: [userId] }),
+    db.execute({ sql: "SELECT id FROM apiKeys WHERE userId = ? AND isActive = 1", args: [userId] }),
+    db.execute({ sql: "SELECT * FROM transactions WHERE userId = ? ORDER BY datetime(createdAt) DESC LIMIT 10", args: [userId] }),
+  ]);
+  const collectionRows = asRows<TursoRow>(collections); const payoutList = asRows<TursoRow>(payoutRows);
+  const total = collectionRows.length + payoutList.length; const successful = [...collectionRows, ...payoutList].filter((row) => row.status === "SUCCESS").length;
+  const user = await getUserById(userId);
+  return { balance: Number(asRows<TursoRow>(wallet)[0]?.balance ?? 0), collections: collectionRows.reduce((sum, row) => sum + Number(row.amount), 0), payouts: payoutList.reduce((sum, row) => sum + Number(row.amount), 0), successRate: total ? Math.round((successful / total) * 1000) / 10 : 100, activeKeys: keys.rows.length, accountId: user?.accountId ?? "1", transactions: asRows<TursoRow>(recent) };
 }
 
-export async function insertTransaction(input: { userId: number; checkoutRequestId: string; merchantRequestId?: string; accountReference: string; phoneNumber: string; amount: number; status?: string }) {
-  const db = await getDb();
-  if (!db) return null;
-  return db.insert(transactions).values({ ...input, amount: input.amount.toFixed(2), status: input.status ?? "PENDING" });
-}
+export async function insertApiKey(input: { userId: number; name: string; keyHash: string }) { return execute({ sql: "INSERT INTO apiKeys (userId, name, keyHash, keyPrefix) VALUES (?, ?, ?, 'sk_live_')", args: [input.userId, input.name, input.keyHash] }); }
+export async function listCollections(userId: number) { const result = await execute({ sql: "SELECT * FROM transactions WHERE userId = ? ORDER BY datetime(createdAt) DESC", args: [userId] }); return result ? asRows<TursoRow>(result) : []; }
+export async function createCollection(input: { userId: number; checkoutRequestId: string; accountReference: string; phoneNumber: string; amount: number; status?: string }) { return execute({ sql: "INSERT INTO transactions (userId, checkoutRequestId, accountReference, phoneNumber, amount, status) VALUES (?, ?, ?, ?, ?, ?)", args: [input.userId, input.checkoutRequestId, input.accountReference, input.phoneNumber, input.amount.toFixed(2), input.status ?? "PENDING"] }); }
+export async function insertTransaction(input: { userId: number; checkoutRequestId: string; merchantRequestId?: string; accountReference: string; phoneNumber: string; amount: number; status?: string }) { return execute({ sql: "INSERT INTO transactions (userId, checkoutRequestId, merchantRequestId, accountReference, phoneNumber, amount, status) VALUES (?, ?, ?, ?, ?, ?, ?)", args: [input.userId, input.checkoutRequestId, input.merchantRequestId ?? null, input.accountReference, input.phoneNumber, input.amount.toFixed(2), input.status ?? "PENDING"] }); }
+export async function updateCollection(userId: number, id: number, input: { phoneNumber: string; amount: number; accountReference: string }) { return execute({ sql: "UPDATE transactions SET phoneNumber = ?, amount = ?, accountReference = ? WHERE id = ? AND userId = ?", args: [input.phoneNumber, input.amount.toFixed(2), input.accountReference, id, userId] }); }
+export async function deleteCollection(userId: number, id: number) { return execute({ sql: "DELETE FROM transactions WHERE id = ? AND userId = ?", args: [id, userId] }); }
+export async function listPayouts(userId: number) { const result = await execute({ sql: "SELECT * FROM payouts WHERE userId = ? ORDER BY datetime(createdAt) DESC", args: [userId] }); return result ? asRows<TursoRow>(result) : []; }
+export async function createPayout(input: { userId: number; recipientPhone: string; amount: number; commandId: "BusinessPayment" | "SalaryPayment"; status?: string }) { return execute({ sql: "INSERT INTO payouts (userId, recipientPhone, amount, commandId, status) VALUES (?, ?, ?, ?, ?)", args: [input.userId, input.recipientPhone, input.amount.toFixed(2), input.commandId, input.status ?? "PENDING"] }); }
+export async function updatePayout(userId: number, id: number, input: { recipientPhone: string; amount: number; commandId: "BusinessPayment" | "SalaryPayment" }) { return execute({ sql: "UPDATE payouts SET recipientPhone = ?, amount = ?, commandId = ? WHERE id = ? AND userId = ?", args: [input.recipientPhone, input.amount.toFixed(2), input.commandId, id, userId] }); }
+export async function deletePayout(userId: number, id: number) { return execute({ sql: "DELETE FROM payouts WHERE id = ? AND userId = ?", args: [id, userId] }); }
 
-export async function listCollections(userId: number) {
-  const db = await getDb();
-  if (!db) return [];
-  return db.select().from(transactions).where(eq(transactions.userId, userId)).orderBy(desc(transactions.createdAt));
-}
+export async function getWalletBalance(userId: number) { const result = await execute({ sql: "SELECT balance FROM wallets WHERE userId = ? LIMIT 1", args: [userId] }); return Number(result ? asRows<TursoRow>(result)[0]?.balance ?? 0 : 0); }
+export async function createPayoutRecord(input: { userId: number; phoneNumber: string; amount: number; commandId: string; originatorConversationId?: string; conversationId?: string }) { return execute({ sql: "INSERT INTO payouts (userId, recipientPhone, amount, commandId, originatorConversationId, conversationId, status) VALUES (?, ?, ?, ?, ?, ?, 'PENDING')", args: [input.userId, input.phoneNumber, input.amount.toFixed(2), input.commandId, input.originatorConversationId ?? null, input.conversationId ?? null] }); }
 
-export async function createCollection(input: { userId: number; checkoutRequestId: string; accountReference: string; phoneNumber: string; amount: number; status?: string }) {
-  const db = await getDb();
-  if (!db) return null;
-  const result = await db.insert(transactions).values({ userId: input.userId, checkoutRequestId: input.checkoutRequestId, accountReference: input.accountReference, phoneNumber: input.phoneNumber, amount: input.amount.toFixed(2), status: input.status ?? "PENDING" });
-  return result;
-}
-
-export async function updateCollection(userId: number, id: number, input: { phoneNumber: string; amount: number; accountReference: string }) {
-  const db = await getDb();
-  if (!db) return null;
-  return db.update(transactions).set({ phoneNumber: input.phoneNumber, amount: input.amount.toFixed(2), accountReference: input.accountReference }).where(and(eq(transactions.id, id), eq(transactions.userId, userId)));
-}
-
-export async function deleteCollection(userId: number, id: number) {
-  const db = await getDb();
-  if (!db) return null;
-  return db.delete(transactions).where(and(eq(transactions.id, id), eq(transactions.userId, userId)));
-}
-
-export async function listPayouts(userId: number) {
-  const db = await getDb();
-  if (!db) return [];
-  return db.select().from(payouts).where(eq(payouts.userId, userId)).orderBy(desc(payouts.createdAt));
-}
-
-export async function createPayout(input: { userId: number; recipientPhone: string; amount: number; commandId: "BusinessPayment" | "SalaryPayment"; status?: string }) {
-  const db = await getDb();
-  if (!db) return null;
-  return db.insert(payouts).values({ userId: input.userId, recipientPhone: input.recipientPhone, amount: input.amount.toFixed(2), commandId: input.commandId, status: input.status ?? "PENDING" });
-}
-
-export async function updatePayout(userId: number, id: number, input: { recipientPhone: string; amount: number; commandId: "BusinessPayment" | "SalaryPayment" }) {
-  const db = await getDb();
-  if (!db) return null;
-  return db.update(payouts).set({ recipientPhone: input.recipientPhone, amount: input.amount.toFixed(2), commandId: input.commandId }).where(and(eq(payouts.id, id), eq(payouts.userId, userId)));
-}
-
-export async function deletePayout(userId: number, id: number) {
-  const db = await getDb();
-  if (!db) return null;
-  return db.delete(payouts).where(and(eq(payouts.id, id), eq(payouts.userId, userId)));
-}
-
-export async function listAdminUsers() {
-  const db = await getDb();
-  if (!db) return [];
-  const rows = await db.select().from(users).orderBy(desc(users.createdAt));
-  const walletRows = await db.select().from(wallets);
-  const balances = new Map(walletRows.map((wallet) => [wallet.userId, Number(wallet.balance)]));
-  return rows.map((user) => ({ ...user, balance: balances.get(user.id) ?? 0 }));
-}
-
-export async function setUserSuspended(userId: number, isSuspended: boolean) {
-  const db = await getDb();
-  if (!db) return null;
-  return db.update(users).set({ isSuspended }).where(eq(users.id, userId));
-}
-
-export async function adjustWallet(input: { userId: number; amount: number; type: "CREDIT" | "DEBIT"; reason: string }) {
-  const db = await getDb();
-  if (!db) return null;
-  const wallet = (await db.select().from(wallets).where(eq(wallets.userId, input.userId)).limit(1))[0];
-  if (!wallet) return null;
-  const signedAmount = input.type === "CREDIT" ? input.amount : -input.amount;
-  const nextBalance = Math.max(0, Number(wallet.balance) + signedAmount);
-  await db.update(wallets).set({ balance: nextBalance.toFixed(2) }).where(eq(wallets.id, wallet.id));
-  await db.insert(walletTransactions).values({ walletId: wallet.id, amount: signedAmount.toFixed(2), type: input.type === "CREDIT" ? "ADMIN_ADJUSTMENT" : "DEBIT", reference: generateAuditReference(), description: input.reason });
-  return { balance: nextBalance };
-}
-
-export async function writeAuditLog(input: { userId: number; action: string; details: unknown }) {
-  const db = await getDb();
-  if (!db) return null;
-  return db.insert(auditLogs).values({ userId: input.userId, action: input.action, details: JSON.stringify(input.details) });
-}
-
-export async function listAuditLogs() {
-  const db = await getDb();
-  if (!db) return [];
-  return db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(100);
-}
-
-export async function getSystemSettings() {
-  const db = await getDb();
-  if (!db) return [{ settingKey: "PLATFORM_SHORTCODE", value: "4208798", description: "Primary M-PESA Paybill" }, { settingKey: "MAINTENANCE_MODE", value: "false", description: "Block new money movement requests" }];
-  return db.select().from(systemSettings);
-}
-
+export async function listAdminUsers() { const result = await execute("SELECT u.*, COALESCE(w.balance, '0.00') AS balance FROM users u LEFT JOIN wallets w ON w.userId = u.id ORDER BY datetime(u.createdAt) DESC"); return result ? asRows<TursoRow>(result).map((row) => ({ ...userFromRow(row), balance: Number(row.balance ?? 0) })) : []; }
+export async function setUserSuspended(userId: number, isSuspended: boolean) { return execute({ sql: "UPDATE users SET isSuspended = ?, updatedAt = ? WHERE id = ?", args: [isSuspended ? 1 : 0, now(), userId] }); }
+export async function adjustWallet(input: { userId: number; amount: number; type: "CREDIT" | "DEBIT"; reason: string }) { const current = await getWalletBalance(input.userId); const next = Math.max(0, current + (input.type === "CREDIT" ? input.amount : -input.amount)); const db = await getTurso(); if (!db) return null; await db.batch([{ sql: "INSERT OR IGNORE INTO wallets (userId, balance) VALUES (?, '0.00')", args: [input.userId] }, { sql: "UPDATE wallets SET balance = ?, updatedAt = ? WHERE userId = ?", args: [next.toFixed(2), now(), input.userId] }, { sql: "INSERT INTO walletTransactions (walletId, amount, type, reference, description) SELECT id, ?, ?, ?, ? FROM wallets WHERE userId = ?", args: [(input.type === "CREDIT" ? input.amount : -input.amount).toFixed(2), input.type === "CREDIT" ? "ADMIN_ADJUSTMENT" : "DEBIT", generateAuditReference(), input.reason, input.userId] }], "write"); return { balance: next }; }
+export async function writeAuditLog(input: { userId: number; action: string; details: unknown }) { return execute({ sql: "INSERT INTO auditLogs (userId, action, details) VALUES (?, ?, ?)", args: [input.userId, input.action, JSON.stringify(input.details)] }); }
+export async function listAuditLogs() { const result = await execute("SELECT * FROM auditLogs ORDER BY datetime(createdAt) DESC LIMIT 100"); return result ? asRows<TursoRow>(result) : []; }
+export async function getSystemSettings() { const result = await execute("SELECT * FROM systemSettings"); return result ? asRows<TursoRow>(result) : [{ settingKey: "PLATFORM_SHORTCODE", value: "4208798", description: "Primary M-PESA Paybill" }, { settingKey: "MAINTENANCE_MODE", value: "false", description: "Block new money movement requests" }]; }
+export async function getStoredMpesaConfig(userId: number) { const result = await execute({ sql: "SELECT * FROM mpesaConfigs WHERE userId = ? LIMIT 1", args: [userId] }); return result ? asRows<TursoRow>(result)[0] : undefined; }
+export async function saveMpesaConfig(input: { userId: number; shortcode: string; consumerKeyEncrypted: string; consumerSecretEncrypted: string; passkeyEncrypted: string; b2cInitiatorName?: string; b2cInitiatorPasswordEncrypted?: string | null; environment: string }) { return execute({ sql: `INSERT INTO mpesaConfigs (userId, shortcode, consumerKeyEncrypted, consumerSecretEncrypted, passkeyEncrypted, b2cInitiatorName, b2cInitiatorPasswordEncrypted, environment) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(userId) DO UPDATE SET shortcode=excluded.shortcode, consumerKeyEncrypted=excluded.consumerKeyEncrypted, consumerSecretEncrypted=excluded.consumerSecretEncrypted, passkeyEncrypted=excluded.passkeyEncrypted, b2cInitiatorName=excluded.b2cInitiatorName, b2cInitiatorPasswordEncrypted=excluded.b2cInitiatorPasswordEncrypted, environment=excluded.environment`, args: [input.userId, input.shortcode, input.consumerKeyEncrypted, input.consumerSecretEncrypted, input.passkeyEncrypted, input.b2cInitiatorName ?? null, input.b2cInitiatorPasswordEncrypted ?? null, input.environment] }); }
+export async function listWebhooks(userId: number) { const result = await execute({ sql: "SELECT id, userId, url, isActive, createdAt FROM webhookEndpoints WHERE userId = ? ORDER BY datetime(createdAt) DESC", args: [userId] }); return result ? asRows<TursoRow>(result) : []; }
+export async function createWebhook(input: { userId: number; url: string; secretEncrypted: string }) { return execute({ sql: "INSERT INTO webhookEndpoints (userId, url, secretEncrypted) VALUES (?, ?, ?)", args: [input.userId, input.url, input.secretEncrypted] }); }
+export async function deleteWebhook(userId: number, id: number) { return execute({ sql: "DELETE FROM webhookEndpoints WHERE id = ? AND userId = ?", args: [id, userId] }); }
+export async function authenticateApiKey(keyHash: string) { const result = await execute({ sql: "SELECT a.*, u.* FROM apiKeys a JOIN users u ON u.id = a.userId WHERE a.keyHash = ? AND a.isActive = 1 LIMIT 1", args: [keyHash] }); const row = result ? asRows<TursoRow>(result)[0] : undefined; return row ? { keyId: Number(row.id), user: userFromRow(row) } : null; }
+export async function markApiKeyUsed(keyId: number) { return execute({ sql: "UPDATE apiKeys SET lastUsedAt = ? WHERE id = ?", args: [now(), keyId] }); }
+export async function updateStkCallback(input: { checkoutRequestId: string; success: boolean; failureReason?: string | null; receipt?: string | null }) { return execute({ sql: "UPDATE transactions SET status = ?, failureReason = ?, mpesaReceipt = ? WHERE checkoutRequestId = ?", args: [input.success ? "SUCCESS" : "FAILED", input.failureReason ?? null, input.receipt ?? null, input.checkoutRequestId] }); }
 function generateAuditReference() { return `1AUD${Date.now()}${Math.floor(Math.random() * 1000)}`.slice(0, 64); }
-
-export async function listWebhooks(userId: number) {
-  const db = await getDb();
-  if (!db) return [];
-  return db.select({ id: webhookEndpoints.id, userId: webhookEndpoints.userId, url: webhookEndpoints.url, isActive: webhookEndpoints.isActive, createdAt: webhookEndpoints.createdAt }).from(webhookEndpoints).where(eq(webhookEndpoints.userId, userId)).orderBy(desc(webhookEndpoints.createdAt));
-}
-
-export async function createWebhook(input: { userId: number; url: string; secretEncrypted: string }) {
-  const db = await getDb();
-  if (!db) return null;
-  return db.insert(webhookEndpoints).values({ userId: input.userId, url: input.url, secretEncrypted: input.secretEncrypted });
-}
-
-export async function deleteWebhook(userId: number, id: number) {
-  const db = await getDb();
-  if (!db) return null;
-  return db.delete(webhookEndpoints).where(and(eq(webhookEndpoints.id, id), eq(webhookEndpoints.userId, userId)));
-}
