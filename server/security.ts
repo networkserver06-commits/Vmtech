@@ -35,7 +35,7 @@ export function signWebhook(payload: string, secret: string) {
   return `sha256=${createHmac("sha256", secret).update(payload).digest("hex")}`;
 }
 
-export function createSecurityCredential(initiatorPassword: string, certificate = process.env.MPESA_PRODUCTION_CERTIFICATE) {
+export function createSecurityCredential(initiatorPassword: string, certificate?: string) {
   if (!certificate) throw new Error("MPESA_PRODUCTION_CERTIFICATE is required for production B2C payouts");
   return publicEncrypt({ key: certificate, padding: constants.RSA_PKCS1_PADDING }, Buffer.from(initiatorPassword)).toString("base64");
 }
