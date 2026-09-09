@@ -42,9 +42,8 @@ export async function registerWithEmail(input: { email: string; password: string
   const existing = asRows<TursoRow>(await db.execute({ sql: "SELECT id FROM users WHERE lower(email) = ? LIMIT 1", args: [email] }))[0];
   if (existing) throw new Error("An account with this email already exists");
   const passwordHash = await hashPassword(input.password);
-  const count = Number(asRows<TursoRow>(await db.execute("SELECT COUNT(*) AS count FROM users"))[0]?.count ?? 0);
   const openId = `email_${hashToken(email).slice(0, 40)}`;
-  await upsertUser({ openId, email, name: input.name.trim(), loginMethod: "email", role: isConfiguredAdminEmail(email) || count === 0 ? "admin" : "user" });
+  await upsertUser({ openId, email, name: input.name.trim(), loginMethod: "email", role: isConfiguredAdminEmail(email) ? "admin" : "user" });
   const user = await db.execute({ sql: "SELECT id FROM users WHERE openId = ? LIMIT 1", args: [openId] });
   const userId = Number(asRows<TursoRow>(user)[0]?.id);
   await db.execute({ sql: "UPDATE users SET passwordHash = ?, emailVerified = 0 WHERE id = ?", args: [passwordHash, userId] });

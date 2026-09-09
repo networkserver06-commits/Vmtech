@@ -15,7 +15,7 @@ const amountSchema = z.number().positive().max(1500000);
 async function getStoredConfig(userId: number) { return getStoredMpesaConfig(userId) as any; }
 
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if (ctx.user.role.toUpperCase() !== "ADMIN" && !isConfiguredAdminEmail(ctx.user.email)) throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
+  if (!isConfiguredAdminEmail(ctx.user.email)) throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
   return next();
 });
 
@@ -97,7 +97,7 @@ export const appRouter = router({
     deleteWebhook: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteWebhook(ctx.user.id, input.id)),
   }),
   admin: router({
-    health: adminProcedure.query(() => ({ status: "operational", liveRequestsEnabled: process.env.MPESA_LIVE_ENABLED === "true", environment: process.env.MPESA_ENVIRONMENT ?? (process.env.MPESA_LIVE_ENABLED === "true" ? "PRODUCTION" : "SANDBOX") })),
+    health: adminProcedure.query(() => ({ status: "operational", liveRequestsEnabled: process.env.MPESA_LIVE_ENABLED === "true", environment: process.env.MPESA_ENVIRONMENT ?? (process.env.MPESA_LIVE_ENABLED === "true" ? "PRODUCTION" : "SANDBOX"), configuration: { consumerKey: Boolean(process.env.MPESA_CONSUMER_KEY), consumerSecret: Boolean(process.env.MPESA_CONSUMER_SECRET), passkey: Boolean(process.env.MPESA_PASSKEY), encryptionKey: Boolean(process.env.LEETEC_CREDENTIAL_KEY), stkCallback: Boolean(process.env.STK_CALLBACK_URL), c2bConfirmation: Boolean(process.env.C2B_CONFIRMATION_URL), c2bValidation: Boolean(process.env.C2B_VALIDATION_URL), b2cResult: Boolean(process.env.B2C_RESULT_URL), b2cTimeout: Boolean(process.env.B2C_TIMEOUT_URL) } })),
     overview: adminProcedure.query(() => getAdminOverview()),
     users: adminProcedure.query(() => listAdminUsers()),
     walletLedger: adminProcedure.query(() => listWalletLedger()),

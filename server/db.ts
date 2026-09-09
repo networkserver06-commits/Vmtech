@@ -54,7 +54,8 @@ export async function getOverviewData(userId: number) {
   const user = await getUserById(userId);
   const activity = asRows<TursoRow>(recentCollections);
   const config = asRows<TursoRow>(mpesaConfig)[0];
-  return { balance: Number(asRows<TursoRow>(wallet)[0]?.balance ?? 0), collections: collectionRows.reduce((sum, row) => sum + Number(row.amount), 0), payouts: 0, successRate: total ? Math.round((successful / total) * 1000) / 10 : 0, activeKeys: keys.rows.length, accountId: user?.accountId ?? "—", environment: config?.environment === "PRODUCTION" ? "PRODUCTION" : config?.environment === "SANDBOX" ? "SANDBOX" : "NOT_CONFIGURED", shortcode: config?.shortcode ? String(config.shortcode) : null, transactions: activity };
+  const envLive = process.env.MPESA_LIVE_ENABLED === "true";
+  return { balance: Number(asRows<TursoRow>(wallet)[0]?.balance ?? 0), collections: collectionRows.reduce((sum, row) => sum + Number(row.amount), 0), payouts: 0, successRate: total ? Math.round((successful / total) * 1000) / 10 : 0, activeKeys: keys.rows.length, accountId: user?.accountId ?? "—", environment: config?.environment === "PRODUCTION" || (!config && envLive) ? "PRODUCTION" : config?.environment === "SANDBOX" || !envLive ? "SANDBOX" : "NOT_CONFIGURED", shortcode: config?.shortcode ? String(config.shortcode) : process.env.MPESA_SHORTCODE ?? "4208798", transactions: activity };
 }
 
 export async function insertApiKey(input: { userId: number; name: string; keyHash: string }) { return execute({ sql: "INSERT INTO apiKeys (userId, name, keyHash, keyPrefix) VALUES (?, ?, ?, 'sk_live_')", args: [input.userId, input.name, input.keyHash] }); }
