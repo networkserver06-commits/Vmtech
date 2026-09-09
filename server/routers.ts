@@ -79,7 +79,10 @@ export const appRouter = router({
       const config = till ? { ...baseConfig, shortcode: String(till.tillNumber) } : baseConfig;
       const accountReference = input.accountReference ?? generatePrefixedReference();
       const result = await triggerStkPush(config, { phoneNumber: input.phoneNumber, amount: input.amount, accountReference, transactionDesc: input.transactionDesc, callbackUrl: process.env.STK_CALLBACK_URL ?? "https://leetec.online/api/v1/callbacks/stk" });
-      await insertTransaction({ userId: ctx.user.id, checkoutRequestId: result.CheckoutRequestID ?? result.checkoutRequestId, merchantRequestId: result.MerchantRequestID ?? result.merchantRequestId, tillId: till ? Number(till.id) : null, accountReference, phoneNumber: input.phoneNumber, amount: input.amount, status: "PENDING" });
+      const checkoutRequestId = String(result.CheckoutRequestID ?? result.checkoutRequestId ?? "");
+      const merchantRequestId = result.MerchantRequestID ?? result.merchantRequestId;
+      if (!checkoutRequestId) throw new TRPCError({ code: "BAD_GATEWAY", message: "Daraja accepted no checkout request ID. No transaction was recorded." });
+      await insertTransaction({ userId: ctx.user.id, checkoutRequestId, merchantRequestId: merchantRequestId ? String(merchantRequestId) : undefined, tillId: till ? Number(till.id) : null, accountReference, phoneNumber: input.phoneNumber, amount: input.amount, status: "PENDING" });
       return { ...result, accountReference, till: till ? { id: Number(till.id), number: String(till.tillNumber), name: String(till.name) } : null, estimatedPlatformFee: calculatePlatformFee(input.amount), estimatedNetAmount: Math.max(0, input.amount - calculatePlatformFee(input.amount)) };
     }),
     depositWallet: protectedProcedure.input(z.object({ phoneNumber: phoneSchema, amount: z.number().positive().max(1500000) })).mutation(async ({ ctx, input }) => {
@@ -88,7 +91,10 @@ export const appRouter = router({
       if (process.env.MPESA_LIVE_ENABLED === "true" && (!process.env.MPESA_CONSUMER_KEY || !process.env.MPESA_CONSUMER_SECRET || !process.env.MPESA_PASSKEY)) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Wallet deposits are not configured for live Daraja. Add MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, and MPESA_PASSKEY in Vercel." });
       const accountReference = `1WALLET${Date.now().toString().slice(-10)}`;
       const result = await triggerStkPush(config, { phoneNumber: input.phoneNumber, amount: input.amount, accountReference, transactionDesc: "LeeTec wallet deposit", callbackUrl: process.env.STK_CALLBACK_URL ?? "https://leetec.online/api/v1/callbacks/stk" });
-      await insertWalletDeposit({ userId: ctx.user.id, checkoutRequestId: result.CheckoutRequestID ?? result.checkoutRequestId, merchantRequestId: result.MerchantRequestID ?? result.merchantRequestId, phoneNumber: input.phoneNumber, amount: input.amount });
+      const checkoutRequestId = String(result.CheckoutRequestID ?? result.checkoutRequestId ?? "");
+      const merchantRequestId = result.MerchantRequestID ?? result.merchantRequestId;
+      if (!checkoutRequestId) throw new TRPCError({ code: "BAD_GATEWAY", message: "Daraja accepted no checkout request ID. No wallet deposit was recorded." });
+      await insertWalletDeposit({ userId: ctx.user.id, checkoutRequestId, merchantRequestId: merchantRequestId ? String(merchantRequestId) : undefined, phoneNumber: input.phoneNumber, amount: input.amount });
       return { ...result, accountReference, status: "PENDING" };
     }),
     payout: protectedProcedure.input(z.object({ phoneNumber: phoneSchema, amount: amountSchema, commandId: z.enum(["BusinessPayment", "SalaryPayment"]).default("BusinessPayment") })).mutation(async ({ ctx, input }) => {

@@ -9,6 +9,23 @@ function getBaseUrl(config: DarajaConfig) {
     : "https://sandbox.safaricom.co.ke";
 }
 
+function darajaTimestamp(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Nairobi",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(date).reduce<Record<string, string>>((result, part) => {
+    if (part.type !== "literal") result[part.type] = part.value;
+    return result;
+  }, {});
+  return `${parts.year}${parts.month}${parts.day}${parts.hour}${parts.minute}${parts.second}`;
+}
+
 export async function getDarajaToken(config: DarajaConfig) {
   const basic = Buffer.from(`${config.consumerKey}:${config.consumerSecret}`).toString("base64");
   const response = await fetch(`${getBaseUrl(config)}/oauth/v1/generate?grant_type=client_credentials`, { headers: { Authorization: `Basic ${basic}` } });
@@ -19,14 +36,20 @@ export async function getDarajaToken(config: DarajaConfig) {
 }
 
 export async function triggerStkPush(config: DarajaConfig, input: { phoneNumber: string; amount: number; accountReference: string; transactionDesc: string; callbackUrl: string }) {
-  if (process.env.MPESA_LIVE_ENABLED === "true" && (!config.consumerKey || !config.consumerSecret || !config.passkey || config.consumerKey === "sandbox" || config.consumerSecret === "sandbox" || config.passkey === "sandbox")) throw new Error("Live Daraja credentials are missing or invalid");
-  if (process.env.MPESA_LIVE_ENABLED !== "true") return { sandbox: true, CheckoutRequestID: `ws_CO_${Date.now()}`, MerchantRequestID: "sandbox-merchant", ResponseDescription: "Sandbox mode — request accepted" };
+  const live = config.environment === "PRODUCTION" || (config.environment === undefined && process.env.MPESA_LIVE_ENABLED === "true");
+  if (live && (!config.consumerKey || !config.consumerSecret || !config.passkey || config.consumerKey === "sandbox" || config.consumerSecret === "sandbox" || config.passkey === "sandbox")) throw new Error("Live Daraja credentials are missing or invalid");
+  if (!live) return { sandbox: true, CheckoutRequestID: `ws_CO_${Date.now()}`, MerchantRequestID: "sandbox-merchant", ResponseDescription: "Sandbox mode — request accepted" };
   const token = await getDarajaToken(config);
-  const timestamp = new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14);
+  const timestamp = darajaTimestamp();
   const password = Buffer.from(`${config.shortcode}${config.passkey}${timestamp}`).toString("base64");
   const response = await fetch(`${getBaseUrl(config)}/mpesa/stkpush/v1/processrequest`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ BusinessShortCode: config.shortcode, Password: password, Timestamp: timestamp, TransactionType: "CustomerPayBillOnline", Amount: Math.round(input.amount), PartyA: input.phoneNumber, PartyB: config.shortcode, PhoneNumber: input.phoneNumber, CallBackURL: input.callbackUrl, AccountReference: input.accountReference, TransactionDesc: input.transactionDesc }) });
-  const body = await response.json();
-  if (!response.ok || body.ResponseCode !== "0") throw new Error(body.errorMessage || body.ResponseDescription || "Daraja STK Push failed");
+  const rawBody = await response.text();
+  let body: Record<string, unknown> = {};
+  try { body = JSON.parse(rawBody) as Record<string, unknown>; } catch { body = { raw: rawBody }; }
+  if (!response.ok || body.ResponseCode !== "0") {
+    const detail = body.errorMessage || body.ResponseDescription || body.ResponseCode || body.raw || `HTTP ${response.status}`;
+    throw new Error(`Daraja STK Push failed: ${String(detail)}`);
+  }
   return body;
 }
 
