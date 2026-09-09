@@ -4,7 +4,7 @@ import { COOKIE_NAME } from "../shared/const.js";
 import { getSessionCookieOptions } from "./_core/cookies.js";
 import { systemRouter } from "./_core/systemRouter.js";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc.js";
-import { adjustWallet, createCollection, createPayout, createPayoutRecord, createWebhook, deleteCollection, deletePayout, deleteWebhook, getOverviewData, getStoredMpesaConfig, getSystemSettings, getWalletBalance, insertApiKey, insertTransaction, listAdminUsers, listAuditLogs, listCollections, listPayouts, listWebhooks, saveMpesaConfig, setUserSuspended, updateCollection, updatePayout, writeAuditLog } from "./db.js";
+import { adjustWallet, createCollection, createPayout, createPayoutRecord, createWebhook, deleteCollection, deletePayout, deleteWebhook, getOverviewData, getStoredMpesaConfig, getSystemSettings, getWalletBalance, insertApiKey, insertTransaction, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayouts, listWebhooks, revokeApiKey, saveMpesaConfig, setUserSuspended, updateCollection, updatePayout, writeAuditLog } from "./db.js";
 import { createSecurityCredential, encryptSecret, generateApiKey, generatePrefixedReference, hashApiKey } from "./security.js";
 import { encryptedConfigToDaraja, registerC2bUrls, triggerB2cPayout, triggerStkPush } from "./mpesa.js";
 
@@ -43,6 +43,8 @@ export const appRouter = router({
       await insertApiKey({ userId: ctx.user.id, name: input.name, keyHash: hashApiKey(rawKey) });
       return { key: rawKey, keyPrefix: "sk_live_", revealedOnce: true };
     }),
+    listApiKeys: protectedProcedure.query(({ ctx }) => listApiKeys(ctx.user.id)),
+    revokeApiKey: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => revokeApiKey(ctx.user.id, input.id)),
     saveMpesaConfig: protectedProcedure.input(z.object({ shortcode: z.string().min(4).max(32).default("4208798"), consumerKey: z.string().min(1), consumerSecret: z.string().min(1), passkey: z.string().min(1), b2cInitiatorName: z.string().optional(), b2cInitiatorPassword: z.string().optional(), environment: z.enum(["SANDBOX", "PRODUCTION"]).default("SANDBOX") })).mutation(async ({ ctx, input }) => {
       await saveMpesaConfig({ userId: ctx.user.id, shortcode: input.shortcode, consumerKeyEncrypted: encryptSecret(input.consumerKey), consumerSecretEncrypted: encryptSecret(input.consumerSecret), passkeyEncrypted: encryptSecret(input.passkey), b2cInitiatorName: input.b2cInitiatorName, b2cInitiatorPasswordEncrypted: input.b2cInitiatorPassword ? encryptSecret(input.b2cInitiatorPassword) : null, environment: input.environment });
       return { success: true, environment: input.environment };

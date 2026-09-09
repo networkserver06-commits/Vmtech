@@ -41,22 +41,26 @@ export async function getUserById(id: number) {
 export async function getOverviewData(userId: number) {
   const db = await getTurso();
   if (!db) return { balance: 0, collections: 0, payouts: 0, successRate: 100, activeKeys: 0, accountId: "1", transactions: [] };
-  const [wallet, collections, payoutRows, keys, recentCollections, recentPayouts] = await Promise.all([
+  const [wallet, collections, payoutRows, keys, recentCollections, recentPayouts, mpesaConfig] = await Promise.all([
     db.execute({ sql: "SELECT balance FROM wallets WHERE userId = ? LIMIT 1", args: [userId] }),
     db.execute({ sql: "SELECT * FROM transactions WHERE userId = ?", args: [userId] }),
     db.execute({ sql: "SELECT * FROM payouts WHERE userId = ?", args: [userId] }),
     db.execute({ sql: "SELECT id FROM apiKeys WHERE userId = ? AND isActive = 1", args: [userId] }),
     db.execute({ sql: "SELECT *, 'collection' AS kind FROM transactions WHERE userId = ? ORDER BY datetime(createdAt) DESC LIMIT 10", args: [userId] }),
     db.execute({ sql: "SELECT *, 'payout' AS kind FROM payouts WHERE userId = ? ORDER BY datetime(createdAt) DESC LIMIT 10", args: [userId] }),
+    db.execute({ sql: "SELECT shortcode, environment FROM mpesaConfigs WHERE userId = ? LIMIT 1", args: [userId] }),
   ]);
   const collectionRows = asRows<TursoRow>(collections); const payoutList = asRows<TursoRow>(payoutRows);
   const total = collectionRows.length + payoutList.length; const successful = [...collectionRows, ...payoutList].filter((row) => row.status === "SUCCESS").length;
   const user = await getUserById(userId);
   const activity = [...asRows<TursoRow>(recentCollections), ...asRows<TursoRow>(recentPayouts)].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).slice(0, 10);
-  return { balance: Number(asRows<TursoRow>(wallet)[0]?.balance ?? 0), collections: collectionRows.reduce((sum, row) => sum + Number(row.amount), 0), payouts: payoutList.reduce((sum, row) => sum + Number(row.amount), 0), successRate: total ? Math.round((successful / total) * 1000) / 10 : 100, activeKeys: keys.rows.length, accountId: user?.accountId ?? "1", transactions: activity };
+  const config = asRows<TursoRow>(mpesaConfig)[0];
+  return { balance: Number(asRows<TursoRow>(wallet)[0]?.balance ?? 0), collections: collectionRows.reduce((sum, row) => sum + Number(row.amount), 0), payouts: payoutList.reduce((sum, row) => sum + Number(row.amount), 0), successRate: total ? Math.round((successful / total) * 1000) / 10 : 0, activeKeys: keys.rows.length, accountId: user?.accountId ?? "—", environment: config?.environment === "PRODUCTION" ? "PRODUCTION" : config?.environment === "SANDBOX" ? "SANDBOX" : "NOT_CONFIGURED", shortcode: config?.shortcode ? String(config.shortcode) : null, transactions: activity };
 }
 
 export async function insertApiKey(input: { userId: number; name: string; keyHash: string }) { return execute({ sql: "INSERT INTO apiKeys (userId, name, keyHash, keyPrefix) VALUES (?, ?, ?, 'sk_live_')", args: [input.userId, input.name, input.keyHash] }); }
+export async function listApiKeys(userId: number) { const result = await execute({ sql: "SELECT id, name, keyPrefix, isActive, lastUsedAt, createdAt FROM apiKeys WHERE userId = ? ORDER BY datetime(createdAt) DESC", args: [userId] }); return result ? asRows<TursoRow>(result) : []; }
+export async function revokeApiKey(userId: number, id: number) { return execute({ sql: "UPDATE apiKeys SET isActive = 0 WHERE id = ? AND userId = ?", args: [id, userId] }); }
 export async function listCollections(userId: number) { const result = await execute({ sql: "SELECT * FROM transactions WHERE userId = ? ORDER BY datetime(createdAt) DESC", args: [userId] }); return result ? asRows<TursoRow>(result) : []; }
 export async function createCollection(input: { userId: number; checkoutRequestId: string; accountReference: string; phoneNumber: string; amount: number; status?: string }) { return execute({ sql: "INSERT INTO transactions (userId, checkoutRequestId, accountReference, phoneNumber, amount, status) VALUES (?, ?, ?, ?, ?, ?)", args: [input.userId, input.checkoutRequestId, input.accountReference, input.phoneNumber, input.amount.toFixed(2), input.status ?? "PENDING"] }); }
 export async function insertTransaction(input: { userId: number; checkoutRequestId: string; merchantRequestId?: string; accountReference: string; phoneNumber: string; amount: number; status?: string }) { return execute({ sql: "INSERT INTO transactions (userId, checkoutRequestId, merchantRequestId, accountReference, phoneNumber, amount, status) VALUES (?, ?, ?, ?, ?, ?, ?)", args: [input.userId, input.checkoutRequestId, input.merchantRequestId ?? null, input.accountReference, input.phoneNumber, input.amount.toFixed(2), input.status ?? "PENDING"] }); }

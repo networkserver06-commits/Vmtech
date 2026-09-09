@@ -59,8 +59,6 @@ const navGroups = [
   },
 ];
 
-const bars = [48, 60, 42, 68, 54, 74, 63, 82, 56, 72, 88, 70, 92, 76, 66, 84, 96, 79, 100, 87, 92, 80, 96, 90];
-
 function money(value: number) { return `KES ${value.toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
 function relativeTime(value: unknown) {
   const date = new Date(String(value));
@@ -104,9 +102,14 @@ export default function Home() {
   const [, navigate] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
+  const [keyName, setKeyName] = useState("");
+  const [newSecret, setNewSecret] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const { user, loading } = useAuth();
   const overview = trpc.engine.overview.useQuery(undefined, { enabled: Boolean(user), refetchInterval: 5000, refetchOnWindowFocus: true });
+  const apiKeys = trpc.engine.listApiKeys.useQuery(undefined, { enabled: Boolean(user), refetchOnWindowFocus: true });
+  const createApiKey = trpc.engine.createApiKey.useMutation({ onSuccess: (result) => { setNewSecret(result.key); setKeyName(""); apiKeys.refetch(); notify("Production key created. Copy it now; it will not be shown again."); } });
+  const revokeApiKey = trpc.engine.revokeApiKey.useMutation({ onSuccess: () => { apiKeys.refetch(); notify("API key revoked"); } });
   useEffect(() => {
     if (!loading && !user) navigate("/login");
   }, [loading, user, navigate]);
@@ -117,8 +120,15 @@ export default function Home() {
     window.setTimeout(() => setToast(null), 2600);
   };
   if (loading || !user || overview.isLoading) return <div className="auth-state"><div className="brand-mark"><Zap size={17} /></div><span>Loading secure workspace…</span></div>;
-  const live = overview.data ?? { balance: 0, collections: 0, payouts: 0, successRate: 100, activeKeys: 0, accountId: user.accountId ?? "—", transactions: [] };
+  const live = overview.data ?? { balance: 0, collections: 0, payouts: 0, successRate: 0, activeKeys: 0, accountId: user.accountId ?? "—", environment: "NOT_CONFIGURED", shortcode: null, transactions: [] };
   const activities = live.transactions as Array<Record<string, unknown>>;
+  const visibleKeys = (apiKeys.data ?? []) as Array<Record<string, unknown>>;
+  const activeKey = visibleKeys.find((key) => Boolean(key.isActive));
+  const chartBars = useMemo(() => {
+    const values = activities.slice(0, 12).map((item) => Number(item.amount ?? 0));
+    const max = Math.max(...values, 1);
+    return Array.from({ length: 12 }, (_, index) => Math.max(8, Math.round(((values[index] ?? 0) / max) * 92)));
+  }, [activities]);
 
   return (
     <div className="app-shell">
@@ -146,11 +156,11 @@ export default function Home() {
                   <button
                     key={item.label}
                     className={`nav-item ${active ? "active" : ""}`}
-                    onClick={() => { setActiveNav(item.label); setMobileOpen(false); if (item.label === "Collections") navigate("/collections"); if (item.label === "Payouts") navigate("/payouts"); }}
+                    onClick={() => { setActiveNav(item.label); setMobileOpen(false); if (item.label === "Collections") navigate("/collections"); if (item.label === "Payouts") navigate("/payouts"); if (item.label === "API keys") window.setTimeout(() => document.getElementById("api-keys-panel")?.scrollIntoView({ behavior: "smooth", block: "center" }), 0); }}
                   >
                     <Icon size={17} strokeWidth={active ? 2.3 : 1.8} />
                     <span>{item.label}</span>
-                    {item.label === "API keys" && <span className="nav-count">2</span>}
+                    {item.label === "API keys" && <span className="nav-count">{live.activeKeys}</span>}
                   </button>
                 );
               })}
@@ -161,7 +171,7 @@ export default function Home() {
         <div className="sidebar-bottom">
           <div className="sandbox-card">
             <div className="sandbox-icon"><ShieldCheck size={16} /></div>
-            <div><strong>Sandbox mode</strong><span>Safe testing enabled</span></div>
+            <div><strong>{live.environment === "PRODUCTION" ? "Production mode" : live.environment === "SANDBOX" ? "Sandbox mode" : "Payments not configured"}</strong><span>{live.shortcode ? `Shortcode ${live.shortcode}` : "Add M-PESA credentials in Settings"}</span></div>
             <span className="live-dot" />
           </div>
           <button className="nav-item"><Settings2 size={17} /><span>Settings</span></button>
@@ -194,25 +204,25 @@ export default function Home() {
           </section>
 
           <section className="hero-strip">
-            <div className="hero-copy"><div className="hero-kicker"><span className="pulse-dot" /> LIVE ENVIRONMENT</div><h2>Payments that move at the speed of your business.</h2><p>Your Daraja connection is healthy. The platform shortcode <strong>4208798</strong> is ready to collect.</p><button className="text-link" onClick={() => notify("Connection diagnostics are healthy")}>View connection health <ArrowUpRight size={15} /></button></div>
+            <div className="hero-copy"><div className="hero-kicker"><span className="pulse-dot" /> {live.environment === "PRODUCTION" ? "LIVE ENVIRONMENT" : live.environment === "SANDBOX" ? "SANDBOX ENVIRONMENT" : "ENVIRONMENT SETUP"}</div><h2>Payments that move at the speed of your business.</h2><p>{live.shortcode ? <>Your Daraja connection is configured with shortcode <strong>{live.shortcode}</strong>.</> : "Add your Daraja credentials in Settings to enable payment requests."}</p><button className="text-link" onClick={() => notify(live.shortcode ? "Configuration loaded from your workspace" : "M-PESA configuration is not set")}>View connection health <ArrowUpRight size={15} /></button></div>
             <div className="hero-orbit"><div className="orbit-ring ring-one" /><div className="orbit-ring ring-two" /><div className="orbit-core"><Zap size={27} /></div><span className="orbit-label label-a">STK</span><span className="orbit-label label-b">B2C</span><span className="orbit-label label-c">C2B</span></div>
           </section>
 
           <section className="metrics-grid">
-            <div className="metric-card balance-card"><div className="metric-top"><span>Available balance</span><WalletCards size={17} /></div><div className="metric-value">{money(live.balance)}</div><div className="metric-bottom"><span className="metric-change positive"><ArrowUpRight size={13} /> 12.8%</span><span>vs. last month</span><button className="metric-action" onClick={() => setActiveNav("Wallet")}>Manage wallet <ArrowUpRight size={13} /></button></div></div>
-            <div className="metric-card"><div className="metric-top"><span>Collections volume</span><ArrowDownLeft size={17} /></div><div className="metric-value">{money(live.collections)}</div><div className="metric-bottom"><span className="metric-change positive"><ArrowUpRight size={13} /> 8.4%</span><span>this month</span></div><div className="metric-spark"><div className="spark-line"><span /><span /><span /><span /><span /><span /><span /><span /><span /><span /><span /></div></div></div>
-            <div className="metric-card"><div className="metric-top"><span>Successful requests</span><CheckCircle2 size={17} /></div><div className="metric-value">{live.successRate}<span>%</span></div><div className="metric-bottom"><span className="metric-change positive"><TrendingUp size={13} /> 1.2%</span><span>last 30 days</span></div><div className="progress-track"><div className="progress-value" /></div><div className="progress-caption"><span>14,281 total calls</span><span>Excellent</span></div></div>
-            <div className="metric-card"><div className="metric-top"><span>Active API keys</span><KeyRound size={17} /></div><div className="metric-value">{String(live.activeKeys).padStart(2, "0")}</div><div className="metric-bottom"><span className="metric-change neutral">Production</span><span>rotated 12d ago</span></div><button className="metric-action standalone" onClick={() => setActiveNav("API keys")}>Manage keys <ArrowUpRight size={13} /></button></div>
+            <div className="metric-card balance-card"><div className="metric-top"><span>Available balance</span><WalletCards size={17} /></div><div className="metric-value">{money(live.balance)}</div><div className="metric-bottom"><span className="metric-change neutral">Current balance</span><button className="metric-action" onClick={() => setActiveNav("Wallet")}>Manage wallet <ArrowUpRight size={13} /></button></div></div>
+            <div className="metric-card"><div className="metric-top"><span>Collections volume</span><ArrowDownLeft size={17} /></div><div className="metric-value">{money(live.collections)}</div><div className="metric-bottom"><span className="metric-change neutral">All recorded collections</span></div><div className="metric-spark"><div className="spark-line">{chartBars.slice(-8).map((height, index) => <span key={index} style={{ height: `${height}%` }} />)}</div></div></div>
+            <div className="metric-card"><div className="metric-top"><span>Successful requests</span><CheckCircle2 size={17} /></div><div className="metric-value">{live.successRate}<span>%</span></div><div className="metric-bottom"><span className="metric-change neutral">Recorded activity</span><span>{activities.length} recent events</span></div><div className="progress-track"><div className="progress-value" style={{ width: `${live.successRate}%` }} /></div><div className="progress-caption"><span>From stored transactions</span><span>{live.successRate >= 90 ? "Healthy" : live.successRate > 0 ? "Monitor" : "No data"}</span></div></div>
+            <div className="metric-card"><div className="metric-top"><span>Active API keys</span><KeyRound size={17} /></div><div className="metric-value">{String(live.activeKeys).padStart(2, "0")}</div><div className="metric-bottom"><span className="metric-change neutral">{live.environment === "PRODUCTION" ? "Production" : live.environment === "SANDBOX" ? "Sandbox" : "Not configured"}</span><span>{activeKey ? `Last used ${relativeTime(activeKey.lastUsedAt)}` : "No active keys"}</span></div><button className="metric-action standalone" onClick={() => setActiveNav("API keys")}>Manage keys <ArrowUpRight size={13} /></button></div>
           </section>
 
           <section className="dashboard-grid">
-            <div className="panel volume-panel"><div className="panel-heading"><div><h3>Transaction volume</h3><p>Gross value processed across all flows</p></div><div className="period-select">Last 30 days <ChevronDown size={14} /></div></div><div className="chart-summary"><div><strong>{money(live.collections + live.payouts)}</strong><span><ArrowUpRight size={13} /> 10.6% from previous period</span></div><div className="legend"><span><i className="legend-dot collections" /> Collections</span><span><i className="legend-dot payouts" /> Payouts</span></div></div><div className="bar-chart" aria-label="Transaction volume chart">{bars.map((height, index) => <div className="bar-column" key={index}><div className={`bar collections ${index > 15 ? "emphasis" : ""}`} style={{ height: `${height}%` }} /><div className="bar payouts" style={{ height: `${Math.max(18, height * .42)}%` }} /></div>)}</div><div className="chart-axis"><span>01 Sep</span><span>08 Sep</span><span>15 Sep</span><span>22 Sep</span><span>30 Sep</span></div></div>
+            <div className="panel volume-panel"><div className="panel-heading"><div><h3>Transaction volume</h3><p>Gross value processed across all stored flows</p></div><div className="period-select">All recorded data <ChevronDown size={14} /></div></div><div className="chart-summary"><div><strong>{money(live.collections + live.payouts)}</strong><span>Collections plus payouts</span></div><div className="legend"><span><i className="legend-dot collections" /> Collections</span><span><i className="legend-dot payouts" /> Payouts</span></div></div><div className="bar-chart" aria-label="Transaction volume chart">{chartBars.map((height, index) => <div className="bar-column" key={index}><div className="bar collections" style={{ height: `${height}%` }} /><div className="bar payouts" style={{ height: `${Math.max(8, height * .42)}%` }} /></div>)}</div><div className="chart-axis"><span>Older</span><span>Recent</span></div></div>
             <div className="panel quick-panel"><div className="panel-heading"><div><h3>Quick actions</h3><p>Common developer tasks</p></div><Zap size={17} className="gold-icon" /></div><div className="quick-list"><button onClick={() => navigate("/collections")}><span className="quick-icon green"><ArrowDownLeft size={17} /></span><span><strong>Collect payment</strong><small>Trigger an STK Push</small></span><ArrowUpRight size={15} /></button><button onClick={() => navigate("/payouts")}><span className="quick-icon blue"><Send size={17} /></span><span><strong>Send payout</strong><small>Disburse via B2C</small></span><ArrowUpRight size={15} /></button><button onClick={() => setActiveNav("Webhooks")}><span className="quick-icon purple"><Webhook size={17} /></span><span><strong>Configure webhook</strong><small>Receive event updates</small></span><ArrowUpRight size={15} /></button></div><div className="quick-footer"><Terminal size={15} /> <span>Need help integrating?</span><button onClick={() => setActiveNav("API reference")}>Read the docs <ArrowUpRight size={13} /></button></div></div>
           </section>
 
           <section className="lower-grid">
             <div className="panel activity-panel"><div className="panel-heading"><div><h3>Recent activity</h3><p>Your latest collections and payouts</p></div><button className="panel-link" onClick={() => navigate("/collections")}>View all <ArrowUpRight size={14} /></button></div><div className="activity-table"><div className="table-head"><span>Reference</span><span>Type</span><span>Amount</span><span>Status</span><span>Time</span><span /></div>{activities.length ? activities.map((tx) => { const payout = tx.kind === "payout"; const status = String(tx.status ?? "PENDING"); const amount = Number(tx.amount ?? 0); const reference = String(tx.checkoutRequestId ?? tx.conversationId ?? tx.id ?? "—"); const detail = String(tx.phoneNumber ?? tx.recipientPhone ?? tx.accountReference ?? "—"); const displayStatus = status === "SUCCESS" ? "Success" : status === "FAILED" ? "Failed" : "Pending"; return <div className="table-row" key={`${tx.kind}-${tx.id}`}><div className="ref-cell"><div className={`tx-icon ${payout ? "payout" : "collection"}`}>{payout ? <Send size={14} /> : <ArrowDownLeft size={14} />}</div><div><strong>{reference}</strong><small>{detail}</small></div></div><span className="type-cell">{payout ? "B2C payout" : "STK Push"}</span><strong className={payout ? "amount-negative" : "amount-positive"}>{payout ? "−" : "+"} {money(amount)}</strong><StatusBadge status={displayStatus} /><span className="time-cell">{relativeTime(tx.createdAt)}</span><button className="row-more" aria-label={`More actions for ${reference}`}><MoreHorizontal size={16} /></button></div>; }) : <div className="live-empty">No M-PESA transactions yet. New activity will appear here automatically.</div>}</div></div>
-            <div className="panel key-panel"><div className="panel-heading"><div><h3>Production key</h3><p>Use this key in your server</p></div><KeyRound size={17} className="gold-icon" /></div><div className="key-preview"><div className="key-label"><span>Secret key</span><button onClick={() => setShowSecret(!showSecret)}>{showSecret ? <EyeOff size={14} /> : <Eye size={14} />} {showSecret ? "Hide" : "Reveal"}</button></div><div className="secret-value">{showSecret ? "sk_live_51M2••••••••••••••••9XwP" : "sk_live_51M2••••••••••••••••••••"}<CopyButton value="sk_live_51M2_example_key" /></div><div className="key-meta"><span><span className="live-dot" /> Active</span><span>Created 12 days ago</span></div></div><div className="key-warning"><ShieldCheck size={16} /><span>Keep your secret key private. It can make live API requests.</span></div><button className="secondary-button full-width" onClick={() => notify("Key creation flow opened")}><Plus size={16} /> Create another key</button></div>
+            <div className="panel key-panel"><div className="panel-heading"><div><h3>Developer API keys</h3><p>Production secrets are shown once at creation.</p></div><KeyRound size={17} className="gold-icon" /></div><div className="key-preview"><div className="key-label"><span>{activeKey ? String(activeKey.name) : "No active key"}</span>{activeKey && <button onClick={() => revokeApiKey.mutate({ id: Number(activeKey.id) })}>Revoke</button>}</div><div className="secret-value">{newSecret ?? (activeKey ? `${String(activeKey.keyPrefix)}••••••••••••••••` : "Create a key to receive a secret")}{newSecret && <CopyButton value={newSecret} />}</div><div className="key-meta"><span><span className="live-dot" /> {activeKey ? "Active" : "Not configured"}</span><span>{activeKey ? `Created ${relativeTime(activeKey.createdAt)}` : "No keys created"}</span></div></div><div className="key-warning"><ShieldCheck size={16} /><span>Store the secret securely. It cannot be retrieved after this screen.</span></div><div className="key-create-row"><Input value={keyName} onChange={(event) => setKeyName(event.target.value)} placeholder="Key name, e.g. Production API" aria-label="New API key name" /><button className="secondary-button" disabled={createApiKey.isPending || keyName.trim().length < 2} onClick={() => createApiKey.mutate({ name: keyName.trim() })}><Plus size={16} /> Create key</button></div></div>
           </section>
 
           <footer className="footer-note"><span><span className="footer-dot" /> All systems operational</span><span>LeeTec Engine v1.0 <span className="footer-sep">•</span> <button onClick={() => notify("Status page is opening soon")}>Status</button> <span className="footer-sep">•</span> <button onClick={() => notify("Documentation is opening soon")}>Documentation</button></span></footer>
