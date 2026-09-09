@@ -71,6 +71,12 @@ function relativeTime(value: unknown) {
   return date.toLocaleDateString("en-KE", { day: "2-digit", month: "short" });
 }
 
+function normalizeDepositPhone(value: string) {
+  const digits = value.trim().replace(/[\s()-]/g, "").replace(/^\+/, "");
+  const normalized = digits.startsWith("254") ? digits : /^(?:07|01)\d{8}$/.test(digits) ? `254${digits.slice(1)}` : "";
+  return /^254\d{9}$/.test(normalized) ? normalized : "";
+}
+
 function StatusBadge({ status }: { status: string }) {
   const tone = status === "Success" ? "success" : status === "Pending" ? "pending" : "failed";
   return (
@@ -139,6 +145,7 @@ export default function Home() {
   const visibleTills = (tills.data ?? []) as Array<Record<string, unknown>>;
   const visibleDeposits = walletDeposits.data ?? [];
   const visibleTillTransactions = tillTransactions.data ?? [];
+  const normalizedDepositPhone = normalizeDepositPhone(depositPhone);
   const chartBars = useMemo(() => {
     const values = activities.slice(0, 12).map((item) => Number(item.amount ?? 0));
     const max = Math.max(...values, 1);
@@ -236,7 +243,7 @@ export default function Home() {
 
           <section className="wallet-deposit-panel panel tab-wallet">
             <div className="wallet-deposit-copy"><div className="panel-kicker">WALLET OPERATIONS <span className="eyebrow-line" /></div><h3>Fund your platform wallet</h3><p>Send an STK Push to your platform M-PESA account. Your platform wallet is credited only after Safaricom confirms the payment.</p><div className="wallet-deposit-meta"><span><CheckCircle2 size={14} /> Live callback settlement</span><span><ShieldCheck size={14} /> Ledger tracked</span></div></div>
-            <div className="wallet-deposit-form"><Input value={depositPhone} onChange={(event) => setDepositPhone(event.target.value.replace(/\D/g, "").slice(0, 12))} placeholder="254712345678" aria-label="M-PESA phone number" inputMode="numeric" /><Input value={depositAmount} onChange={(event) => setDepositAmount(event.target.value.replace(/[^\d.]/g, ""))} placeholder="Amount in KES" aria-label="Wallet deposit amount" inputMode="decimal" /><button className="primary-button" disabled={depositWallet.isPending || !/^254\d{9}$/.test(depositPhone) || Number(depositAmount) <= 0} onClick={() => depositWallet.mutate({ phoneNumber: depositPhone, amount: Number(depositAmount) })}><WalletCards size={16} /> {depositWallet.isPending ? "Sending…" : "Deposit wallet"}</button></div>
+            <div className="wallet-deposit-form"><label className="wallet-form-field"><span>M-PESA number</span><Input value={depositPhone} onChange={(event) => setDepositPhone(event.target.value.replace(/[^\d+\s()-]/g, "").slice(0, 20))} placeholder="07..., 011..., or 254..." aria-label="M-PESA phone number" inputMode="tel" autoComplete="tel" /><small>Accepted: 07XXXXXXXX, 011XXXXXXXX, or 254XXXXXXXXX</small></label><label className="wallet-form-field"><span>Deposit amount</span><Input value={depositAmount} onChange={(event) => setDepositAmount(event.target.value.replace(/[^\d.]/g, ""))} placeholder="Amount in KES" aria-label="Wallet deposit amount" inputMode="decimal" min="1" max="1500000" /><small>Wallet credit follows the confirmed M-PESA callback.</small></label><button className="primary-button" disabled={depositWallet.isPending || !normalizedDepositPhone || Number(depositAmount) <= 0} onClick={() => depositWallet.mutate({ phoneNumber: normalizedDepositPhone, amount: Number(depositAmount) })}><WalletCards size={16} /> {depositWallet.isPending ? "Sending…" : "Deposit wallet"}</button></div>
             <div className="wallet-history"><div className="wallet-history-tabs"><button className={walletHistoryTab === "deposits" ? "active" : ""} onClick={() => setWalletHistoryTab("deposits")}>Wallet deposits <span>{visibleDeposits.length}</span></button><button className={walletHistoryTab === "collections" ? "active" : ""} onClick={() => setWalletHistoryTab("collections")}>Direct Till collections <span>{visibleTillTransactions.length}</span></button></div>{walletHistoryTab === "deposits" ? <div className="wallet-history-list">{visibleDeposits.length ? visibleDeposits.map((deposit) => <div className="wallet-history-row" key={String(deposit.id)}><div><strong>{money(Number(deposit.amount))}</strong><small>{String(deposit.phoneNumber)} · {String(deposit.mpesaReceipt ?? "Awaiting receipt")}</small></div><span className={`deposit-status ${String(deposit.status).toLowerCase()}`}>{String(deposit.status) === "SUCCESS" ? "Credited" : String(deposit.status) === "FAILED" ? "Failed" : "Awaiting STK"}</span><small>{new Date(String(deposit.createdAt)).toLocaleString()}</small></div>) : <div className="wallet-history-empty">No wallet deposits yet.</div>}</div> : <div className="wallet-history-list">{visibleTillTransactions.length ? visibleTillTransactions.map((transaction) => <div className="wallet-history-row" key={String(transaction.id)}><div><strong>{money(Number(transaction.amount))}</strong><small>{String(transaction.tillName ?? "Platform Till")} · {String(transaction.tillNumber ?? "Primary shortcode")} · {String(transaction.accountReference)} · Fee {money(Number(transaction.platformFee ?? 0))} · Net {money(Number(transaction.netAmount ?? transaction.amount))}</small></div><span className={`deposit-status ${String(transaction.status).toLowerCase()}`}>{String(transaction.status) === "SUCCESS" ? "Settled" : String(transaction.status)}</span><small>{new Date(String(transaction.createdAt)).toLocaleString()}</small></div>) : <div className="wallet-history-empty">No direct Till collections yet.</div>}</div>}</div>
           </section>
 
