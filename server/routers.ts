@@ -4,7 +4,8 @@ import { COOKIE_NAME } from "../shared/const.js";
 import { getSessionCookieOptions } from "./_core/cookies.js";
 import { systemRouter } from "./_core/systemRouter.js";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc.js";
-import { adjustWallet, calculatePlatformFee, createCollection, createPayout, createPayoutRecord, createTill, createWebhook, deleteCollection, deletePayout, deleteTill, deleteWebhook, getOverviewData, getStoredMpesaConfig, getSystemSettings, getTill, getWalletBalance, insertApiKey, insertTransaction, insertWalletDeposit, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayouts, listTills, listWalletDeposits, listWebhooks, revokeApiKey, saveMpesaConfig, setUserSuspended, updateCollection, updatePayout, updateTill, writeAuditLog } from "./db.js";
+import { isConfiguredAdminEmail } from "./_core/env.js";
+import { adjustWallet, calculatePlatformFee, createCollection, createPayout, createPayoutRecord, createTill, createWebhook, deleteCollection, deletePayout, deleteTill, deleteWebhook, getAdminOverview, getOverviewData, getStoredMpesaConfig, getSystemSettings, getTill, getWalletBalance, insertApiKey, insertTransaction, insertWalletDeposit, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayouts, listTills, listWalletDeposits, listWalletLedger, listWebhooks, revokeApiKey, saveMpesaConfig, setUserSuspended, updateCollection, updatePayout, updateTill, writeAuditLog } from "./db.js";
 import { createSecurityCredential, encryptSecret, generateApiKey, generatePrefixedReference, hashApiKey } from "./security.js";
 import { encryptedConfigToDaraja, registerC2bUrls, triggerB2cPayout, triggerStkPush } from "./mpesa.js";
 
@@ -14,7 +15,7 @@ const amountSchema = z.number().positive().max(1500000);
 async function getStoredConfig(userId: number) { return getStoredMpesaConfig(userId) as any; }
 
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if (ctx.user.role.toUpperCase() !== "ADMIN") throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
+  if (ctx.user.role.toUpperCase() !== "ADMIN" && !isConfiguredAdminEmail(ctx.user.email)) throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
   return next();
 });
 
@@ -96,8 +97,10 @@ export const appRouter = router({
     deleteWebhook: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteWebhook(ctx.user.id, input.id)),
   }),
   admin: router({
-    health: adminProcedure.query(() => ({ status: "operational", shortcode: "4208798", liveRequestsEnabled: process.env.MPESA_LIVE_ENABLED === "true" })),
+    health: adminProcedure.query(() => ({ status: "operational", liveRequestsEnabled: process.env.MPESA_LIVE_ENABLED === "true", environment: process.env.MPESA_ENVIRONMENT ?? (process.env.MPESA_LIVE_ENABLED === "true" ? "PRODUCTION" : "SANDBOX") })),
+    overview: adminProcedure.query(() => getAdminOverview()),
     users: adminProcedure.query(() => listAdminUsers()),
+    walletLedger: adminProcedure.query(() => listWalletLedger()),
     auditLogs: adminProcedure.query(() => listAuditLogs()),
     settings: adminProcedure.query(() => getSystemSettings()),
     setSuspended: adminProcedure.input(z.object({ userId: z.number().int().positive(), isSuspended: z.boolean() })).mutation(async ({ ctx, input }) => { const result = await setUserSuspended(input.userId, input.isSuspended); await writeAuditLog({ userId: ctx.user.id, action: input.isSuspended ? "SUSPEND_USER" : "RESTORE_USER", details: { targetUserId: input.userId } }); return result; }),

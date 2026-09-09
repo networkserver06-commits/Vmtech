@@ -6,4 +6,11 @@ export const ENV = {
   resendFromEmail: process.env.RESEND_FROM_EMAIL ?? "",
   appUrl: process.env.APP_URL ?? "",
   isProduction: process.env.NODE_ENV === "production",
+  adminEmails: (process.env.ADMIN_EMAILS ?? "").split(",").map((email) => email.trim().toLowerCase()).filter(Boolean),
+  mpesaLiveEnabled: process.env.MPESA_LIVE_ENABLED === "true",
+  mpesaEnvironment: process.env.MPESA_ENVIRONMENT ?? (process.env.MPESA_LIVE_ENABLED === "true" ? "PRODUCTION" : "SANDBOX"),
 };
+
+export function isConfiguredAdminEmail(email: string | null | undefined) {
+  return Boolean(email && ENV.adminEmails.includes(email.trim().toLowerCase()));
+}

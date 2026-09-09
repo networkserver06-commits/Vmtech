@@ -1,10 +1,11 @@
 import type { User } from "../drizzle/schema.js";
 import { asRows, execute, getTurso, type TursoRow } from "./turso.js";
+import { isConfiguredAdminEmail } from "./_core/env.js";
 
 const now = () => new Date().toISOString();
 const userFromRow = (row: TursoRow) => {
   const { passwordHash: _passwordHash, ...safeRow } = row;
-  return { ...safeRow, isSuspended: Boolean(row.isSuspended), createdAt: new Date(String(row.createdAt)), updatedAt: new Date(String(row.updatedAt)), lastSignedIn: new Date(String(row.lastSignedIn)) } as unknown as User;
+  return { ...safeRow, role: isConfiguredAdminEmail(row.email == null ? null : String(row.email)) ? "admin" : row.role, isSuspended: Boolean(row.isSuspended), createdAt: new Date(String(row.createdAt)), updatedAt: new Date(String(row.updatedAt)), lastSignedIn: new Date(String(row.lastSignedIn)) } as unknown as User;
 };
 
 export async function getDb() { return getTurso(); }
@@ -87,6 +88,20 @@ export async function listWalletDeposits(userId: number) { const result = await 
 export async function createPayoutRecord(input: { userId: number; phoneNumber: string; amount: number; commandId: string; originatorConversationId?: string; conversationId?: string }) { return execute({ sql: "INSERT INTO payouts (userId, recipientPhone, amount, commandId, originatorConversationId, conversationId, status) VALUES (?, ?, ?, ?, ?, ?, 'PENDING')", args: [input.userId, input.phoneNumber, input.amount.toFixed(2), input.commandId, input.originatorConversationId ?? null, input.conversationId ?? null] }); }
 
 export async function listAdminUsers() { const result = await execute("SELECT u.*, COALESCE(w.balance, '0.00') AS balance FROM users u LEFT JOIN wallets w ON w.userId = u.id ORDER BY datetime(u.createdAt) DESC"); return result ? asRows<TursoRow>(result).map((row) => ({ ...userFromRow(row), balance: Number(row.balance ?? 0) })) : []; }
+export async function getAdminOverview() {
+  const db = await getTurso(); if (!db) return { developers: 0, walletFloat: 0, activeIntegrations: 0, suspendedAccounts: 0, successfulTransactions: 0, totalTransactions: 0, environment: "NOT_CONFIGURED", shortcode: null };
+  const [users, wallets, keys, webhooks, configs, transactions] = await Promise.all([
+    db.execute("SELECT COUNT(*) AS count, SUM(CASE WHEN isSuspended = 1 THEN 1 ELSE 0 END) AS suspended FROM users"),
+    db.execute("SELECT COALESCE(SUM(CAST(balance AS REAL)), 0) AS total FROM wallets"),
+    db.execute("SELECT COUNT(*) AS count FROM apiKeys WHERE isActive = 1"),
+    db.execute("SELECT COUNT(*) AS count FROM webhookEndpoints WHERE isActive = 1"),
+    db.execute("SELECT environment, shortcode FROM mpesaConfigs ORDER BY id DESC LIMIT 1"),
+    db.execute("SELECT COUNT(*) AS total, SUM(CASE WHEN status = 'SUCCESS' THEN 1 ELSE 0 END) AS successful FROM transactions"),
+  ]);
+  const userRow = asRows<TursoRow>(users)[0] ?? {}; const config = asRows<TursoRow>(configs)[0] ?? {}; const tx = asRows<TursoRow>(transactions)[0] ?? {};
+  return { developers: Number(userRow.count ?? 0), walletFloat: Number(asRows<TursoRow>(wallets)[0]?.total ?? 0), activeIntegrations: Number(asRows<TursoRow>(keys)[0]?.count ?? 0) + Number(asRows<TursoRow>(webhooks)[0]?.count ?? 0), suspendedAccounts: Number(userRow.suspended ?? 0), successfulTransactions: Number(tx.successful ?? 0), totalTransactions: Number(tx.total ?? 0), environment: String(config.environment ?? "NOT_CONFIGURED"), shortcode: config.shortcode ? String(config.shortcode) : null };
+}
+export async function listWalletLedger() { const result = await execute("SELECT wt.*, w.userId FROM walletTransactions wt JOIN wallets w ON w.id = wt.walletId ORDER BY datetime(wt.createdAt) DESC LIMIT 100"); return result ? asRows<TursoRow>(result) : []; }
 export async function setUserSuspended(userId: number, isSuspended: boolean) { return execute({ sql: "UPDATE users SET isSuspended = ?, updatedAt = ? WHERE id = ?", args: [isSuspended ? 1 : 0, now(), userId] }); }
 export async function adjustWallet(input: { userId: number; amount: number; type: "CREDIT" | "DEBIT"; reason: string }) { const current = await getWalletBalance(input.userId); const next = Math.max(0, current + (input.type === "CREDIT" ? input.amount : -input.amount)); const db = await getTurso(); if (!db) return null; await db.batch([{ sql: "INSERT OR IGNORE INTO wallets (userId, balance) VALUES (?, '0.00')", args: [input.userId] }, { sql: "UPDATE wallets SET balance = ?, updatedAt = ? WHERE userId = ?", args: [next.toFixed(2), now(), input.userId] }, { sql: "INSERT INTO walletTransactions (walletId, amount, type, reference, description) SELECT id, ?, ?, ?, ? FROM wallets WHERE userId = ?", args: [(input.type === "CREDIT" ? input.amount : -input.amount).toFixed(2), input.type === "CREDIT" ? "ADMIN_ADJUSTMENT" : "DEBIT", generateAuditReference(), input.reason, input.userId] }], "write"); return { balance: next }; }
 export async function writeAuditLog(input: { userId: number; action: string; details: unknown }) { return execute({ sql: "INSERT INTO auditLogs (userId, action, details) VALUES (?, ?, ?)", args: [input.userId, input.action, JSON.stringify(input.details)] }); }
