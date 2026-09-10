@@ -12,6 +12,19 @@ async function authenticate(req: Request, res: Response) {
   return result.user;
 }
 
+export function explainStkResult(resultCode: unknown, resultDescription: unknown) {
+  const code = Number(resultCode);
+  const description = typeof resultDescription === "string" ? resultDescription.trim() : "";
+  if (code === 0) return null;
+  const known: Record<number, string> = {
+    1: "The M-PESA account has insufficient funds for this transaction.",
+    1032: "The M-PESA request was cancelled on the phone.",
+    1037: "The M-PESA prompt timed out. Unlock the phone and retry when the prompt appears.",
+    2001: "The M-PESA PIN was incorrect or the request was rejected by the M-PESA account.",
+  };
+  return known[code] ? `Safaricom error ${code}: ${known[code]}` : description || `Safaricom returned error code ${String(resultCode)}.`;
+}
+
 export function registerRestRoutes(app: Express) {
   app.post("/api/v1/stkpush", async (req, res) => {
     try { const user = await authenticate(req, res); if (!user) return; const caller = appRouter.createCaller({ user, req: req as never, res: res as never }); res.json(await caller.engine.stkPush({ phoneNumber: req.body.phoneNumber, amount: Number(req.body.amount), tillId: req.body.tillId ? Number(req.body.tillId) : undefined, accountReference: req.body.accountReference, transactionDesc: req.body.transactionDesc })); }
@@ -27,7 +40,7 @@ export function registerRestRoutes(app: Express) {
       if (callback?.CheckoutRequestID) {
         const success = Number(callback.ResultCode) === 0;
         const rawReason = callback.ResultDesc ?? callback.ResultDescription ?? callback.errorMessage;
-        const failureReason = success ? null : typeof rawReason === "string" && rawReason.trim() ? rawReason.trim() : "Safaricom declined the STK request without providing a reason.";
+        const failureReason = success ? null : explainStkResult(callback.ResultCode, rawReason) ?? "Safaricom declined the STK request without providing a reason.";
         await updateStkCallback({ checkoutRequestId: String(callback.CheckoutRequestID), success, failureReason, receipt: callback.CallbackMetadata?.Item?.find((item: { Name: string }) => item.Name === "MpesaReceiptNumber")?.Value?.toString() });
       }
     } finally { res.json({ ResultCode: 0, ResultDesc: "Accepted" }); }
