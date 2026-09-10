@@ -114,16 +114,22 @@ export async function deleteWebhook(userId: number, id: number) { return execute
 export async function authenticateApiKey(keyHash: string) { const result = await execute({ sql: "SELECT a.*, u.* FROM apiKeys a JOIN users u ON u.id = a.userId WHERE a.keyHash = ? AND a.isActive = 1 LIMIT 1", args: [keyHash] }); const row = result ? asRows<TursoRow>(result)[0] : undefined; return row ? { keyId: Number(row.id), user: userFromRow(row) } : null; }
 export async function markApiKeyUsed(keyId: number) { return execute({ sql: "UPDATE apiKeys SET lastUsedAt = ? WHERE id = ?", args: [now(), keyId] }); }
 export function calculatePlatformFee(amount: number) { return amount <= 50 ? 1 : Math.round(amount * 0.015 * 100) / 100; }
-export async function updateStkCallback(input: { checkoutRequestId: string; success: boolean; failureReason?: string | null; receipt?: string | null }) {
+export async function updateStkCallback(input: { checkoutRequestId: string; success: boolean; failureReason?: string | null; receipt?: string | null; paidAmount?: number | null; paidPhoneNumber?: string | null }) {
   const db = await getTurso(); if (!db) return null;
-  const deposit = asRows<TursoRow>(await db.execute({ sql: "SELECT id, userId, amount, status FROM walletDeposits WHERE checkoutRequestId = ? LIMIT 1", args: [input.checkoutRequestId] }))[0];
+  const deposit = asRows<TursoRow>(await db.execute({ sql: "SELECT id, userId, amount, phoneNumber, status FROM walletDeposits WHERE checkoutRequestId = ? LIMIT 1", args: [input.checkoutRequestId] }))[0];
   if (deposit) {
+    if (input.success && (!input.receipt || input.paidAmount == null || Math.abs(Number(deposit.amount) - input.paidAmount) > 0.001 || (input.paidPhoneNumber && String(deposit.phoneNumber) !== input.paidPhoneNumber))) {
+      return db.execute({ sql: "UPDATE walletDeposits SET status = 'FAILED', failureReason = ? WHERE checkoutRequestId = ? AND status = 'PENDING'", args: ["Safaricom callback payment details did not match the pending deposit", input.checkoutRequestId] });
+    }
     const result = await db.execute({ sql: "UPDATE walletDeposits SET status = ?, failureReason = ?, mpesaReceipt = ?, settledAt = ? WHERE checkoutRequestId = ? AND status = 'PENDING'", args: [input.success ? "SUCCESS" : "FAILED", input.failureReason ?? null, input.receipt ?? null, input.success ? now() : null, input.checkoutRequestId] });
     if (!input.success || Number(result.rowsAffected ?? 0) !== 1) return result;
     const amount = Number(deposit.amount ?? 0); const reference = `WALLET_DEPOSIT_${String(deposit.id)}`;
     await db.batch([{ sql: "INSERT OR IGNORE INTO wallets (userId, balance) VALUES (?, '0.00')", args: [Number(deposit.userId)] }, { sql: "UPDATE wallets SET balance = CAST(balance AS REAL) + ?, updatedAt = ? WHERE userId = ?", args: [amount.toFixed(2), now(), Number(deposit.userId)] }, { sql: "INSERT OR IGNORE INTO walletTransactions (walletId, amount, type, reference, description) SELECT id, ?, 'DEPOSIT', ?, ? FROM wallets WHERE userId = ?", args: [amount.toFixed(2), reference, `Wallet deposit via STK Push ${input.checkoutRequestId}`, Number(deposit.userId)] }], "write");
     return result;
   }
+  if (input.success && !input.receipt) return db.execute({ sql: "UPDATE transactions SET status = 'FAILED', failureReason = ? WHERE checkoutRequestId = ? AND status = 'PENDING'", args: ["Safaricom callback did not include a payment receipt", input.checkoutRequestId] });
+  const transaction = asRows<TursoRow>(await db.execute({ sql: "SELECT amount, phoneNumber FROM transactions WHERE checkoutRequestId = ? LIMIT 1", args: [input.checkoutRequestId] }))[0];
+  if (input.success && transaction && (input.paidAmount == null || Math.abs(Number(transaction.amount) - input.paidAmount) > 0.001 || (input.paidPhoneNumber && String(transaction.phoneNumber) !== input.paidPhoneNumber))) return db.execute({ sql: "UPDATE transactions SET status = 'FAILED', failureReason = ? WHERE checkoutRequestId = ? AND status = 'PENDING'", args: ["Safaricom callback payment details did not match the pending transaction", input.checkoutRequestId] });
   const result = await db.execute({ sql: "UPDATE transactions SET status = ?, failureReason = ?, mpesaReceipt = ? WHERE checkoutRequestId = ? AND status != 'SUCCESS'", args: [input.success ? "SUCCESS" : "FAILED", input.failureReason ?? null, input.receipt ?? null, input.checkoutRequestId] });
   if (!input.success || Number(result.rowsAffected ?? 0) !== 1) return result;
   const row = asRows<TursoRow>(await db.execute({ sql: "SELECT id, userId, amount FROM transactions WHERE checkoutRequestId = ? LIMIT 1", args: [input.checkoutRequestId] }))[0];

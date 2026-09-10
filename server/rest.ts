@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { appRouter } from "./routers.js";
 import { authenticateApiKey, getUserById, markApiKeyUsed, recordC2bConfirmation, updateStkCallback } from "./db.js";
 import { hashApiKey } from "./security.js";
+import { getStkCallbackToken } from "./security.js";
 
 async function authenticate(req: Request, res: Response) {
   const raw = req.header("x-api-key") || req.header("authorization")?.replace(/^Bearer\s+/i, "");
@@ -36,13 +37,19 @@ export function registerRestRoutes(app: Express) {
   });
   app.post("/api/v1/callbacks/stk", async (req, res) => {
     try {
+      if (req.query.callbackToken !== getStkCallbackToken()) return res.status(401).json({ ResultCode: 1, ResultDesc: "Unauthorized callback" });
       const callback = req.body?.Body?.stkCallback;
       if (callback?.CheckoutRequestID) {
         const success = Number(callback.ResultCode) === 0;
         const rawReason = callback.ResultDesc ?? callback.ResultDescription ?? callback.errorMessage;
+        const metadataItems = Array.isArray(callback.CallbackMetadata?.Item) ? callback.CallbackMetadata.Item as Array<{ Name?: unknown; Value?: unknown }> : [];
+        const metadata = (name: string) => metadataItems.find((item) => item.Name === name)?.Value;
+        const receipt = metadata("MpesaReceiptNumber");
+        const paidAmount = Number(metadata("Amount"));
+        const paidPhoneNumber = metadata("PhoneNumber");
         const callbackSummary = `Safaricom callback ResultCode=${String(callback.ResultCode)}${callback.ResultDesc ? ` ResultDesc=${String(callback.ResultDesc)}` : ""}`;
         const failureReason = success ? null : rawReason ? explainStkResult(callback.ResultCode, rawReason) : `${callbackSummary}; raw callback=${JSON.stringify(callback)}`;
-        await updateStkCallback({ checkoutRequestId: String(callback.CheckoutRequestID), success, failureReason, receipt: callback.CallbackMetadata?.Item?.find((item: { Name: string }) => item.Name === "MpesaReceiptNumber")?.Value?.toString() });
+        await updateStkCallback({ checkoutRequestId: String(callback.CheckoutRequestID), success, failureReason, receipt: typeof receipt === "string" || typeof receipt === "number" ? String(receipt) : null, paidAmount: Number.isFinite(paidAmount) ? paidAmount : null, paidPhoneNumber: paidPhoneNumber == null ? null : String(paidPhoneNumber) });
       }
     } finally { res.json({ ResultCode: 0, ResultDesc: "Accepted" }); }
   });

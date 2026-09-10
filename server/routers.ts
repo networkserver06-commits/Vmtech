@@ -6,7 +6,7 @@ import { systemRouter } from "./_core/systemRouter.js";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc.js";
 import { isConfiguredAdminEmail } from "./_core/env.js";
 import { adjustWallet, calculatePlatformFee, createCollection, createPayout, createPayoutRecord, createTill, createWebhook, deleteCollection, deletePayout, deleteTill, deleteWebhook, getAdminOverview, getOverviewData, getStoredMpesaConfig, getSystemSettings, getTill, getWalletBalance, insertApiKey, insertTransaction, insertWalletDeposit, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayouts, listTills, listWalletDeposits, listWalletLedger, listWebhooks, revokeApiKey, saveMpesaConfig, setUserSuspended, updateCollection, updatePayout, updateTill, writeAuditLog } from "./db.js";
-import { createSecurityCredential, encryptSecret, generateApiKey, generatePrefixedReference, hashApiKey } from "./security.js";
+import { createSecurityCredential, encryptSecret, generateApiKey, generatePrefixedReference, getStkCallbackToken, hashApiKey } from "./security.js";
 import { encryptedConfigToDaraja, registerC2bUrls, triggerB2cPayout, triggerStkPush } from "./mpesa.js";
 
 /** Convert common Kenyan mobile formats to the Daraja-required 254XXXXXXXXX format. */
@@ -28,6 +28,12 @@ const phoneSchema = z.string().trim().transform(normalizeKenyanPhone);
 const amountSchema = z.number().positive().max(1500000);
 
 async function getStoredConfig(userId: number) { return getStoredMpesaConfig(userId) as any; }
+
+function stkCallbackUrl() {
+  const url = new URL(process.env.STK_CALLBACK_URL ?? "https://leetec.online/api/v1/callbacks/stk");
+  url.searchParams.set("callbackToken", getStkCallbackToken());
+  return url.toString();
+}
 
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   if (!isConfiguredAdminEmail(ctx.user.email)) throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
@@ -78,7 +84,7 @@ export const appRouter = router({
       if (input.tillId && (!till || !Boolean(till.isActive))) throw new TRPCError({ code: "BAD_REQUEST", message: "Selected till is not active or does not belong to this account" });
       const config = till ? { ...baseConfig, shortcode: String(till.tillNumber) } : baseConfig;
       const accountReference = input.accountReference ?? generatePrefixedReference();
-      const result = await triggerStkPush(config, { phoneNumber: input.phoneNumber, amount: input.amount, accountReference, transactionDesc: input.transactionDesc, callbackUrl: process.env.STK_CALLBACK_URL ?? "https://leetec.online/api/v1/callbacks/stk" });
+      const result = await triggerStkPush(config, { phoneNumber: input.phoneNumber, amount: input.amount, accountReference, transactionDesc: input.transactionDesc, callbackUrl: stkCallbackUrl() });
       const checkoutRequestId = String(result.CheckoutRequestID ?? result.checkoutRequestId ?? "");
       const merchantRequestId = result.MerchantRequestID ?? result.merchantRequestId;
       if (!checkoutRequestId) throw new TRPCError({ code: "BAD_GATEWAY", message: "Daraja accepted no checkout request ID. No transaction was recorded." });
@@ -92,7 +98,7 @@ export const appRouter = router({
       if (liveEnabled && (!process.env.MPESA_CONSUMER_KEY || !process.env.MPESA_CONSUMER_SECRET || !process.env.MPESA_PASSKEY || !process.env.MPESA_SHORTCODE)) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Wallet deposits are not configured for live Daraja. Add MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, MPESA_PASSKEY, and MPESA_SHORTCODE in Vercel." });
       const config = liveEnabled ? environmentConfig : stored ? encryptedConfigToDaraja(stored) : environmentConfig;
       const accountReference = `1WALLET${Date.now().toString().slice(-10)}`;
-      const result = await triggerStkPush(config, { phoneNumber: input.phoneNumber, amount: input.amount, accountReference, transactionDesc: "LeeTec wallet deposit", callbackUrl: process.env.STK_CALLBACK_URL ?? "https://leetec.online/api/v1/callbacks/stk" });
+      const result = await triggerStkPush(config, { phoneNumber: input.phoneNumber, amount: input.amount, accountReference, transactionDesc: "LeeTec wallet deposit", callbackUrl: stkCallbackUrl() });
       const checkoutRequestId = String(result.CheckoutRequestID ?? result.checkoutRequestId ?? "");
       const merchantRequestId = result.MerchantRequestID ?? result.merchantRequestId;
       if (!checkoutRequestId) throw new TRPCError({ code: "BAD_GATEWAY", message: "Daraja accepted no checkout request ID. No wallet deposit was recorded." });

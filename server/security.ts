@@ -23,6 +23,10 @@ export function hashApiKey(rawKey: string) {
   return createHash("sha256").update(rawKey).digest("hex");
 }
 
+export function getStkCallbackToken() {
+  return createHmac("sha256", process.env.JWT_SECRET || "change-this-session-secret").update("leetec-stk-callback-v1").digest("hex");
+}
+
 export function generateApiKey() {
   return `sk_live_${randomBytes(24).toString("hex")}`;
 }
