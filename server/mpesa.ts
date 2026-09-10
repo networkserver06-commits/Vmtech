@@ -58,7 +58,7 @@ export async function triggerStkPush(config: DarajaConfig, input: { phoneNumber:
   const token = await getDarajaToken(config);
   const timestamp = darajaTimestamp();
   const password = Buffer.from(`${config.shortcode}${config.passkey}${timestamp}`).toString("base64");
-  const response = await fetch(`${getBaseUrl(config)}/mpesa/stkpush/v1/processrequest`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ BusinessShortCode: config.shortcode, Password: password, Timestamp: timestamp, TransactionType: "CustomerPayBillOnline", Amount: Math.round(input.amount), PartyA: input.phoneNumber, PartyB: config.shortcode, PhoneNumber: input.phoneNumber, CallBackURL: input.callbackUrl, AccountReference: input.accountReference, TransactionDesc: input.transactionDesc }) });
+  const response = await fetch(`${getBaseUrl(config)}/mpesa/stkpush/v1/processrequest`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ BusinessShortCode: config.shortcode, Password: password, Timestamp: timestamp, TransactionType: "CustomerBuyGoodsOnline", Amount: Math.round(input.amount), PartyA: input.phoneNumber, PartyB: config.shortcode, PhoneNumber: input.phoneNumber, CallBackURL: input.callbackUrl, AccountReference: input.accountReference, TransactionDesc: input.transactionDesc }) });
   const rawBody = await response.text();
   let body: Record<string, unknown> = {};
   try { body = JSON.parse(rawBody) as Record<string, unknown>; } catch { body = { raw: rawBody }; }
