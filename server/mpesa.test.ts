@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { explainDarajaStkError, registerC2bUrls, triggerStkPush } from "./mpesa.js";
 
 describe("Daraja integration safeguards", () => {
@@ -27,5 +27,20 @@ describe("Daraja integration safeguards", () => {
     expect(explainDarajaStkError(404, {})).toContain("Lipa na M-PESA Online");
     expect(explainDarajaStkError(401, { errorMessage: "Invalid access token" })).toContain("consumer key");
     expect(explainDarajaStkError(400, { errorMessage: "Invalid BusinessShortCode" })).toContain("shortcode");
+  });
+
+  it("sends a production STK request to Daraja with the live payload", async () => {
+    process.env.MPESA_LIVE_ENABLED = "true";
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "live-token" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ResponseCode: "0", CheckoutRequestID: "ws_CO_live_1", MerchantRequestID: "live-merchant" }), { status: 200 }));
+
+    const result = await triggerStkPush({ consumerKey: "live-key", consumerSecret: "live-secret", passkey: "live-passkey", shortcode: "4208798", environment: "PRODUCTION" }, { phoneNumber: "254712345678", amount: 10, accountReference: "1WALLETTEST", transactionDesc: "Wallet deposit", callbackUrl: "https://leetec.online/api/v1/callbacks/stk" });
+    expect(result.CheckoutRequestID).toBe("ws_CO_live_1");
+    expect(fetchMock.mock.calls[0]?.[0]).toContain("api.safaricom.co.ke/oauth/v1/generate");
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest");
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)).TransactionType).toBe("CustomerPayBillOnline");
+    fetchMock.mockRestore();
   });
 });
