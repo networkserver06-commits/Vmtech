@@ -86,6 +86,12 @@ function depositDetail(deposit: { status?: unknown; mpesaReceipt?: unknown; fail
   return String(deposit.mpesaReceipt ?? "Awaiting receipt");
 }
 
+function readableDepositError(value: unknown) {
+  const message = typeof value === "string" ? value.trim() : "";
+  if (!message || /unresolved reason type|undefined|null|\[object object\]/i.test(message)) return "Safaricom declined the request without a usable reason. Verify the active Safaricom M-PESA number, live shortcode, STK passkey, and Daraja credentials.";
+  return message;
+}
+
 function StatusBadge({ status }: { status: string }) {
   const tone = status === "Success" ? "success" : status === "Pending" ? "pending" : "failed";
   return (
@@ -140,7 +146,7 @@ export default function Home() {
   const revokeApiKey = trpc.engine.revokeApiKey.useMutation({ onSuccess: () => { apiKeys.refetch(); notify("API key revoked"); } });
   const createTill = trpc.engine.createTill.useMutation({ onSuccess: () => { tills.refetch(); setTillNumber(""); setTillName(""); setTillLocation(""); notify("Till added to your workspace"); } });
   const deleteTill = trpc.engine.deleteTill.useMutation({ onSuccess: () => { tills.refetch(); notify("Till removed"); } });
-  const depositWallet = trpc.engine.depositWallet.useMutation({ onSuccess: () => { overview.refetch(); walletDeposits.refetch(); tillTransactions.refetch(); setDepositError(null); setDepositNotice("STK request accepted. Check the M-PESA phone now and enter your PIN. Your wallet updates only after Safaricom confirms payment."); notify("STK prompt request accepted"); }, onError: (error) => { const message = error.message || "Deposit request failed. Check your M-PESA configuration and try again."; setDepositNotice(null); setDepositError(message); notify("Deposit request failed — see the Wallet status panel"); } });
+  const depositWallet = trpc.engine.depositWallet.useMutation({ onSuccess: () => { overview.refetch(); walletDeposits.refetch(); tillTransactions.refetch(); setDepositError(null); setDepositNotice("STK request accepted. Check the M-PESA phone now and enter your PIN. Your wallet updates only after Safaricom confirms payment."); notify("STK prompt request accepted"); }, onError: (error) => { const message = readableDepositError(error.message); setDepositNotice(null); setDepositError(message); notify("Deposit request failed — see the Wallet status panel"); } });
   useEffect(() => {
     const result = depositWallet.data as { CheckoutRequestID?: unknown; checkoutRequestId?: unknown } | undefined;
     const checkoutId = result?.CheckoutRequestID ?? result?.checkoutRequestId;
@@ -153,7 +159,7 @@ export default function Home() {
       const response = await walletDeposits.refetch();
       const current = (response.data ?? []).find((deposit) => String(deposit.checkoutRequestId) === depositCheckoutId);
       if (current?.status === "SUCCESS") { setDepositNotice("M-PESA payment confirmed. Your wallet has been credited."); setDepositCheckoutId(null); overview.refetch(); window.clearInterval(timer); }
-      else if (current?.status === "FAILED") { setDepositError(String(current.failureReason ?? "Safaricom declined the STK request.")); setDepositNotice(null); setDepositCheckoutId(null); window.clearInterval(timer); }
+      else if (current?.status === "FAILED") { setDepositError(readableDepositError(current.failureReason)); setDepositNotice(null); setDepositCheckoutId(null); window.clearInterval(timer); }
       else if (Date.now() - started > 120000) { setDepositError("No M-PESA callback received within two minutes. Confirm the number is an active Safaricom M-PESA line, then try again."); setDepositNotice(null); setDepositCheckoutId(null); window.clearInterval(timer); }
     }, 5000);
     return () => window.clearInterval(timer);
