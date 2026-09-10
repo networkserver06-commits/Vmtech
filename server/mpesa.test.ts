@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { registerC2bUrls, triggerStkPush } from "./mpesa.js";
+import { explainDarajaStkError, registerC2bUrls, triggerStkPush } from "./mpesa.js";
 
 describe("Daraja integration safeguards", () => {
   const previousLiveFlag = process.env.MPESA_LIVE_ENABLED;
@@ -21,5 +21,11 @@ describe("Daraja integration safeguards", () => {
     const result = await triggerStkPush({ consumerKey: "sandbox", consumerSecret: "sandbox", passkey: "sandbox", shortcode: "4208798", environment: "SANDBOX" }, { phoneNumber: "254712345678", amount: 10, accountReference: "100001", transactionDesc: "Test", callbackUrl: "https://example.com/stk" });
     expect(result.sandbox).toBe(true);
     expect(result.CheckoutRequestID).toMatch(/^ws_CO_/);
+  });
+
+  it("explains live STK product and credential failures", () => {
+    expect(explainDarajaStkError(404, {})).toContain("Lipa na M-PESA Online");
+    expect(explainDarajaStkError(401, { errorMessage: "Invalid access token" })).toContain("consumer key");
+    expect(explainDarajaStkError(400, { errorMessage: "Invalid BusinessShortCode" })).toContain("shortcode");
   });
 });
