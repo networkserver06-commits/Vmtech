@@ -36,11 +36,12 @@ describe("Daraja integration safeguards", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "live-token" }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ResponseCode: "0", CheckoutRequestID: "ws_CO_live_1", MerchantRequestID: "live-merchant" }), { status: 200 }));
 
-    const result = await triggerStkPush({ consumerKey: "live-key", consumerSecret: "live-secret", passkey: "live-passkey", shortcode: "4208798", environment: "PRODUCTION" }, { phoneNumber: "254712345678", amount: 10, accountReference: "1WALLETTEST", transactionDesc: "Wallet deposit", callbackUrl: "https://leetec.online/api/v1/callbacks/stk" });
+    const result = await triggerStkPush({ consumerKey: "live-key", consumerSecret: "live-secret", passkey: "live-passkey", shortcode: "4208798", environment: "PRODUCTION" }, { phoneNumber: "254712345678", amount: 10, accountReference: "1WALLETTEST", transactionDesc: "Wallet deposit", callbackUrl: "https://leetec.online/api/v1/callbacks/stk", partyB: "4415815" });
     expect(result.CheckoutRequestID).toBe("ws_CO_live_1");
     expect(fetchMock.mock.calls[0]?.[0]).toContain("api.safaricom.co.ke/oauth/v1/generate");
     expect(fetchMock.mock.calls[1]?.[0]).toBe("https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest");
     expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)).TransactionType).toBe("CustomerBuyGoodsOnline");
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)).PartyB).toBe("4415815");
     fetchMock.mockRestore();
   });
 });
