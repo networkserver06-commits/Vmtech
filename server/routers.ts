@@ -93,7 +93,7 @@ export const appRouter = router({
     }),
     depositWallet: protectedProcedure.input(z.object({ phoneNumber: phoneSchema, amount: z.number().positive().max(1500000) })).mutation(async ({ ctx, input }) => {
       const stored = await getStoredConfig(ctx.user.id);
-      const liveEnabled = process.env.MPESA_LIVE_ENABLED === "true";
+      const liveEnabled = process.env.MPESA_LIVE_ENABLED === "true" || process.env.MPESA_ENVIRONMENT === "PRODUCTION";
       const environmentConfig = { consumerKey: process.env.MPESA_CONSUMER_KEY ?? "sandbox", consumerSecret: process.env.MPESA_CONSUMER_SECRET ?? "sandbox", passkey: process.env.MPESA_PASSKEY ?? "sandbox", shortcode: process.env.MPESA_SHORTCODE ?? "4208798", environment: process.env.MPESA_ENVIRONMENT === "SANDBOX" ? "SANDBOX" as const : "PRODUCTION" as const };
       const diagnosticId = `DEP-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
       if (liveEnabled && (!process.env.MPESA_CONSUMER_KEY || !process.env.MPESA_CONSUMER_SECRET || !process.env.MPESA_PASSKEY || !process.env.MPESA_SHORTCODE)) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Wallet deposits are not configured for live Daraja. Diagnostic ID: ${diagnosticId}` });
