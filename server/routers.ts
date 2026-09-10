@@ -87,8 +87,10 @@ export const appRouter = router({
     }),
     depositWallet: protectedProcedure.input(z.object({ phoneNumber: phoneSchema, amount: z.number().positive().max(1500000) })).mutation(async ({ ctx, input }) => {
       const stored = await getStoredConfig(ctx.user.id);
-      const config = stored ? encryptedConfigToDaraja(stored) : { consumerKey: process.env.MPESA_CONSUMER_KEY ?? "sandbox", consumerSecret: process.env.MPESA_CONSUMER_SECRET ?? "sandbox", passkey: process.env.MPESA_PASSKEY ?? "sandbox", shortcode: process.env.MPESA_SHORTCODE ?? "4208798", environment: process.env.MPESA_ENVIRONMENT === "PRODUCTION" ? "PRODUCTION" as const : "SANDBOX" as const };
-      if (process.env.MPESA_LIVE_ENABLED === "true" && (!process.env.MPESA_CONSUMER_KEY || !process.env.MPESA_CONSUMER_SECRET || !process.env.MPESA_PASSKEY)) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Wallet deposits are not configured for live Daraja. Add MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, and MPESA_PASSKEY in Vercel." });
+      const liveEnabled = process.env.MPESA_LIVE_ENABLED === "true";
+      const environmentConfig = { consumerKey: process.env.MPESA_CONSUMER_KEY ?? "sandbox", consumerSecret: process.env.MPESA_CONSUMER_SECRET ?? "sandbox", passkey: process.env.MPESA_PASSKEY ?? "sandbox", shortcode: process.env.MPESA_SHORTCODE ?? "4208798", environment: process.env.MPESA_ENVIRONMENT === "SANDBOX" ? "SANDBOX" as const : "PRODUCTION" as const };
+      if (liveEnabled && (!process.env.MPESA_CONSUMER_KEY || !process.env.MPESA_CONSUMER_SECRET || !process.env.MPESA_PASSKEY || !process.env.MPESA_SHORTCODE)) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Wallet deposits are not configured for live Daraja. Add MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, MPESA_PASSKEY, and MPESA_SHORTCODE in Vercel." });
+      const config = liveEnabled ? environmentConfig : stored ? encryptedConfigToDaraja(stored) : environmentConfig;
       const accountReference = `1WALLET${Date.now().toString().slice(-10)}`;
       const result = await triggerStkPush(config, { phoneNumber: input.phoneNumber, amount: input.amount, accountReference, transactionDesc: "LeeTec wallet deposit", callbackUrl: process.env.STK_CALLBACK_URL ?? "https://leetec.online/api/v1/callbacks/stk" });
       const checkoutRequestId = String(result.CheckoutRequestID ?? result.checkoutRequestId ?? "");
