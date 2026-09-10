@@ -40,7 +40,8 @@ export function registerRestRoutes(app: Express) {
       if (callback?.CheckoutRequestID) {
         const success = Number(callback.ResultCode) === 0;
         const rawReason = callback.ResultDesc ?? callback.ResultDescription ?? callback.errorMessage;
-        const failureReason = success ? null : explainStkResult(callback.ResultCode, rawReason) ?? "Safaricom declined the STK request without providing a reason.";
+        const callbackSummary = `Safaricom callback ResultCode=${String(callback.ResultCode)}${callback.ResultDesc ? ` ResultDesc=${String(callback.ResultDesc)}` : ""}`;
+        const failureReason = success ? null : rawReason ? explainStkResult(callback.ResultCode, rawReason) : `${callbackSummary}; raw callback=${JSON.stringify(callback)}`;
         await updateStkCallback({ checkoutRequestId: String(callback.CheckoutRequestID), success, failureReason, receipt: callback.CallbackMetadata?.Item?.find((item: { Name: string }) => item.Name === "MpesaReceiptNumber")?.Value?.toString() });
       }
     } finally { res.json({ ResultCode: 0, ResultDesc: "Accepted" }); }
