@@ -39,11 +39,16 @@ export async function getDarajaToken(config: DarajaConfig) {
 
 export function explainDarajaStkError(status: number, body: Record<string, unknown>) {
   const detail = String(body.errorMessage ?? body.ResponseDescription ?? body.error_description ?? body.ResponseCode ?? "").trim();
+  const code = String(body.errorCode ?? body.ErrorCode ?? body.ResponseCode ?? "").trim();
+  const requestId = String(body.requestId ?? body.RequestId ?? body.requestID ?? "").trim();
+  const diagnostic = [code && `error code ${code}`, requestId && `request ID ${requestId}`].filter(Boolean).join(", ");
   if (/not found|resource|endpoint|product|service/i.test(detail) || status === 404) return "Live STK Push is not enabled for this Daraja app. Enable the Lipa na M-PESA Online / STK Push product for the app, then use its live shortcode and passkey.";
   if (/invalid access token|unauthorized|authentication/i.test(detail) || status === 401) return "Daraja rejected the live access token. Verify the live consumer key and consumer secret belong to the same production app.";
   if (/shortcode|business.*short|party b/i.test(detail)) return "Daraja rejected the shortcode. Use the live PayBill shortcode approved for Lipa na M-PESA Online, not a till number or sandbox shortcode.";
   if (/passkey|password|credential/i.test(detail)) return "Daraja rejected the STK password. Use the live Lipa na M-PESA Online passkey for this exact shortcode.";
-  return detail || `Daraja rejected the live STK request (HTTP ${status}).`;
+  if (detail) return `Daraja rejected the live STK request (HTTP ${status})${diagnostic ? `, ${diagnostic}` : ""}: ${detail}`;
+  const raw = JSON.stringify(body);
+  return `Daraja rejected the live STK request (HTTP ${status})${diagnostic ? `, ${diagnostic}` : ""}. Response: ${raw === "{}" ? "empty response" : raw}`;
 }
 
 export async function triggerStkPush(config: DarajaConfig, input: { phoneNumber: string; amount: number; accountReference: string; transactionDesc: string; callbackUrl: string }) {
