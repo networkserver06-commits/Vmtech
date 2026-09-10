@@ -88,8 +88,15 @@ function depositDetail(deposit: { status?: unknown; mpesaReceipt?: unknown; fail
 
 function readableDepositError(value: unknown) {
   const message = typeof value === "string" ? value.trim() : "";
-  if (!message || /unresolved reason type|undefined|null|\[object object\]/i.test(message)) return "Safaricom declined the request without a usable reason. Verify the active Safaricom M-PESA number, live shortcode, STK passkey, and Daraja credentials.";
+  if (!message || /unresolved reason type|safaricom declined the request without a usable reason|undefined|null|\[object object\]/i.test(message)) return `No usable error details were returned by the production API. Diagnostic ID: DEP-${Date.now().toString(36).toUpperCase()}. Check the Vercel function logs and confirm the live Daraja variables are deployed.`;
   return message;
+}
+
+function depositMutationError(error: unknown) {
+  const candidate = error as { message?: unknown; data?: { code?: unknown; httpStatus?: unknown } } | null;
+  const message = readableDepositError(candidate?.message);
+  const metadata = [candidate?.data?.code && `code=${String(candidate.data.code)}`, candidate?.data?.httpStatus && `http=${String(candidate.data.httpStatus)}`].filter(Boolean).join(" ");
+  return metadata ? `${message} (${metadata})` : message;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -146,7 +153,7 @@ export default function Home() {
   const revokeApiKey = trpc.engine.revokeApiKey.useMutation({ onSuccess: () => { apiKeys.refetch(); notify("API key revoked"); } });
   const createTill = trpc.engine.createTill.useMutation({ onSuccess: () => { tills.refetch(); setTillNumber(""); setTillName(""); setTillLocation(""); notify("Till added to your workspace"); } });
   const deleteTill = trpc.engine.deleteTill.useMutation({ onSuccess: () => { tills.refetch(); notify("Till removed"); } });
-  const depositWallet = trpc.engine.depositWallet.useMutation({ onSuccess: () => { overview.refetch(); walletDeposits.refetch(); tillTransactions.refetch(); setDepositError(null); setDepositNotice("STK request accepted. Check the M-PESA phone now and enter your PIN. Your wallet updates only after Safaricom confirms payment."); notify("STK prompt request accepted"); }, onError: (error) => { const message = readableDepositError(error.message); setDepositNotice(null); setDepositError(message); notify("Deposit request failed — see the Wallet status panel"); } });
+  const depositWallet = trpc.engine.depositWallet.useMutation({ onSuccess: () => { overview.refetch(); walletDeposits.refetch(); tillTransactions.refetch(); setDepositError(null); setDepositNotice("STK request accepted. Check the M-PESA phone now and enter your PIN. Your wallet updates only after Safaricom confirms payment."); notify("STK prompt request accepted"); }, onError: (error) => { const message = depositMutationError(error); setDepositNotice(null); setDepositError(message); notify("Deposit request failed — see the Wallet status panel"); } });
   useEffect(() => {
     const result = depositWallet.data as { CheckoutRequestID?: unknown; checkoutRequestId?: unknown } | undefined;
     const checkoutId = result?.CheckoutRequestID ?? result?.checkoutRequestId;
