@@ -206,6 +206,7 @@ h1 { font-size: 27px; line-height: 1.1; letter-spacing: -1px; font-weight: 700; 
 .key-create-row .secondary-button { flex-shrink: 0; white-space: nowrap; }
 .key-create-row button:disabled { cursor: not-allowed; opacity: .42; }
 .key-preview { background: linear-gradient(145deg, rgba(197,245,110,.045), rgba(0,0,0,.16)); box-shadow: inset 0 1px 0 rgba(255,255,255,.025); }
+.key-access-note { display: flex; align-items: flex-start; gap: 9px; margin: 15px 0 12px; padding: 11px 12px; border: 1px solid rgba(131,198,251,.16); border-radius: 8px; background: rgba(131,198,251,.045); color: #83c6fb; }.key-access-note > div { display: grid; gap: 4px; min-width: 0; }.key-access-note strong { color: #c9dbe4; font-size: 10px; }.key-access-note span { color: #82939b; font-size: 9px; line-height: 1.5; overflow-wrap: anywhere; }.key-access-note code { color: #b8d9ea; font: 9px 'DM Mono', monospace; }
 .secret-value { overflow-wrap: anywhere; }
 .status-badge, .metric-change { white-space: nowrap; }
 .activity-table { overflow-x: auto; }
