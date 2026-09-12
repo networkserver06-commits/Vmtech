@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import SiteFooter from "@/components/SiteFooter";
 import { useLocation } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import {
@@ -316,6 +317,7 @@ export default function Home() {
             <div className="fee-note"><ShieldCheck size={15} /><span>Platform fee: KES 1 for payments up to KES 50, then 1.5%. It is charged from your dashboard wallet after a successful STK Push.</span></div>
           </section>
 
+          <SiteFooter />
           <footer className="footer-note"><span><span className="footer-dot" /> All systems operational</span><span>LeeTec Engine v1.0 <span className="footer-sep">•</span> <button onClick={() => notify("Status page is opening soon")}>Status</button></span></footer>
         {keyConfirmation && <div className="crud-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setKeyConfirmation(null); setRevokeKeyId(null); } }}><div className="crud-modal key-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="key-confirm-title"><div className="modal-heading"><div><span className="modal-kicker">SECURITY CONFIRMATION</span><h2 id="key-confirm-title">{keyConfirmation === "create" ? "Create secret API key?" : "Revoke this API key?"}</h2><p>{keyConfirmation === "create" ? "A new live secret will be generated and shown once." : "Any integration using this key will immediately lose API access."}</p></div><button aria-label="Close confirmation" onClick={() => { setKeyConfirmation(null); setRevokeKeyId(null); }}><X size={18} /></button></div><div className="modal-note"><ShieldCheck size={16} /><span>{keyConfirmation === "create" ? "Store the sk_live_ secret securely. It cannot be retrieved after you leave this screen." : "Revocation is immediate and cannot be undone. Create a replacement key before revoking if your integration is still active."}</span></div><div className="modal-actions"><button className="secondary-button" onClick={() => { setKeyConfirmation(null); setRevokeKeyId(null); }}>Cancel</button><button className={keyConfirmation === "revoke" ? "danger-button" : "primary-button"} disabled={createApiKey.isPending || revokeApiKey.isPending} onClick={() => { if (keyConfirmation === "create") createApiKey.mutate({ name: keyName.trim() }); else if (revokeKeyId !== null) revokeApiKey.mutate({ id: revokeKeyId }); setKeyConfirmation(null); setRevokeKeyId(null); }}>{keyConfirmation === "create" ? "Create secret key" : "Revoke key"}</button></div></div></div>}
         </div>

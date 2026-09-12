@@ -407,3 +407,9 @@ h1 { font-size: 27px; line-height: 1.1; letter-spacing: -1px; font-weight: 700; 
 .webhook-row .till-details strong { overflow-wrap: anywhere; }
 .webhook-create-row { display: grid; grid-template-columns: 1.2fr 1fr auto; gap: 8px; align-items: center; }
 @media (max-width: 760px) { .webhook-create-row { grid-template-columns: 1fr; } .webhook-row { align-items: flex-start; flex-direction: column; } .webhook-row .danger-button { align-self: stretch; justify-content: center; } }
+
+.site-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 24px 0 8px; padding: 18px 2px 4px; border-top: 1px solid rgba(189,211,224,.08); color: #81919a; font-size: 10px; line-height: 1.5; }
+.site-footer-support { display: inline-flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+.site-footer a { display: inline-flex; align-items: center; gap: 4px; color: var(--lime); text-decoration: none; }
+.site-footer a:hover { text-decoration: underline; }
+@media (max-width: 640px) { .site-footer { align-items: flex-start; flex-direction: column; } .site-footer-support { justify-content: flex-start; } }

@@ -1,4 +1,5 @@
 import { ArrowLeft, BookOpen, CheckCircle2, Copy, ExternalLink, KeyRound, ShieldCheck, Webhook, Zap, Code2 as Code2Icon } from "lucide-react";
+import SiteFooter from "@/components/SiteFooter";
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,7 @@ export default function Documentation() {
         <section className="admin-panel docs-panel"><div className="admin-panel-heading"><div><h2>Security checklist</h2><p>Use these rules in every production integration.</p></div><ShieldCheck size={22} /></div><div className="doc-detail-list"><div><span>Secret storage</span><strong>Environment variable or secret manager only</strong></div><div><span>Frontend</span><strong>Never place sk_live_ keys in browser or mobile code</strong></div><div><span>Logging</span><strong>Never log the full API key or customer PIN</strong></div><div><span>Revocation</span><strong>Revoke compromised keys immediately and create a replacement</strong></div><div><span>Fulfillment</span><strong>Fulfill orders only after SUCCESS is visible in LeeTec</strong></div></div></section>
                 <section className="admin-panel docs-panel"><div className="admin-panel-heading"><div><h2>Callback endpoints</h2><p>These are managed LeeTec callback routes. Users do not need to register or expose their own Daraja callback server.</p></div><Webhook size={22} /></div><div className="docs-endpoints">{endpoints.map((endpoint) => <div className="docs-endpoint" key={endpoint.path}><span className="method-pill">{endpoint.method}</span><code>{endpoint.path}</code><span>{endpoint.description}</span><ExternalLink size={14} /></div>)}</div></section>
         <section className="settings-card docs-note"><BookOpen size={18} /><div><strong>Need to configure your integration?</strong><p>Open the workspace to create API keys, manage tills, and review wallet and collection activity.</p></div><Button className="secondary-button" onClick={() => navigate("/dashboard")}>Go to workspace</Button></section>
+        <SiteFooter />
       </div>
     </main>
   </div>;
