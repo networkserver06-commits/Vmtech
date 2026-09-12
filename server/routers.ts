@@ -100,7 +100,7 @@ export const appRouter = router({
       const liveEnabled = process.env.MPESA_LIVE_ENABLED === "true" || process.env.MPESA_ENVIRONMENT === "PRODUCTION";
       const environmentConfig = { consumerKey: process.env.MPESA_CONSUMER_KEY ?? "sandbox", consumerSecret: process.env.MPESA_CONSUMER_SECRET ?? "sandbox", passkey: process.env.MPESA_PASSKEY ?? "sandbox", shortcode: process.env.MPESA_SHORTCODE ?? "4208798", environment: process.env.MPESA_ENVIRONMENT === "SANDBOX" ? "SANDBOX" as const : "PRODUCTION" as const };
       const diagnosticId = `DEP-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-      if (liveEnabled && (!process.env.MPESA_CONSUMER_KEY || !process.env.MPESA_CONSUMER_SECRET || !process.env.MPESA_PASSKEY || !process.env.MPESA_SHORTCODE || !process.env.MPESA_PARTY_B)) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Wallet deposits are not configured for live Buy Goods STK. Add MPESA_PARTY_B (child store number). Diagnostic ID: ${diagnosticId}` });
+      if (liveEnabled && (!process.env.MPESA_CONSUMER_KEY || !process.env.MPESA_CONSUMER_SECRET || !process.env.MPESA_PASSKEY || !process.env.MPESA_SHORTCODE || !process.env.MPESA_PARTY_B)) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Wallet deposits are not configured for live Buy Goods STK. Add MPESA_PARTY_B (actual Buy Goods Till number, not Store number). Diagnostic ID: ${diagnosticId}` });
       const config = liveEnabled ? environmentConfig : stored ? encryptedConfigToDaraja(stored) : environmentConfig;
       const accountReference = `1WALLET${Date.now().toString().slice(-10)}`;
       try {
