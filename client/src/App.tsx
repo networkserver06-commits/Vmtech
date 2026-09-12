@@ -9,6 +9,7 @@ import Collections from "./pages/Collections";
 import Admin from "./pages/Admin";
 import Login from "./pages/Login";
 import Landing from "./pages/Landing";
+import Documentation from "./pages/Documentation";
 
 function Router() {
   return (
@@ -18,6 +19,7 @@ function Router() {
       <Route path="/dashboard" component={Home} />
       <Route path="/admin" component={Admin} />
       <Route path="/collections" component={Collections} />
+      <Route path="/documentation" component={Documentation} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
