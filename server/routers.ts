@@ -70,7 +70,7 @@ export const appRouter = router({
     listApiKeys: protectedProcedure.query(({ ctx }) => listApiKeys(ctx.user.id)),
     revokeApiKey: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => revokeApiKey(ctx.user.id, input.id)),
     listTills: protectedProcedure.query(({ ctx }) => listTills(ctx.user.id)),
-    createTill: protectedProcedure.input(z.object({ tillNumber: z.string().regex(/^\d{5,8}$/, "Enter a valid M-PESA till number"), name: z.string().min(2).max(80), location: z.string().max(120).optional() })).mutation(({ ctx, input }) => createTill({ userId: ctx.user.id, ...input })),
+    createTill: protectedProcedure.input(z.object({ tillNumber: z.string().regex(/^\d{5,8}$/, "Enter a valid M-PESA till or PayBill number"), name: z.string().min(2).max(80), location: z.string().max(120).optional(), paymentType: z.enum(["BUY_GOODS", "PAYBILL"]).default("BUY_GOODS"), businessShortcode: z.string().regex(/^\d{5,8}$/, "Enter the approved Go-Live shortcode").optional() })).mutation(({ ctx, input }) => { if (input.paymentType === "BUY_GOODS" && !input.businessShortcode) throw new TRPCError({ code: "BAD_REQUEST", message: "Buy Goods destinations require the approved Go-Live shortcode" }); return createTill({ userId: ctx.user.id, ...input }); }),
     updateTill: protectedProcedure.input(z.object({ id: z.number().int().positive(), tillNumber: z.string().regex(/^\d{5,8}$/), name: z.string().min(2).max(80), location: z.string().max(120).optional(), isActive: z.boolean() })).mutation(({ ctx, input }) => updateTill(ctx.user.id, input.id, input)),
     deleteTill: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteTill(ctx.user.id, input.id)),
     saveMpesaConfig: protectedProcedure.input(z.object({ shortcode: z.string().min(4).max(32).default("4208798"), consumerKey: z.string().min(1), consumerSecret: z.string().min(1), passkey: z.string().min(1), b2cInitiatorName: z.string().optional(), b2cInitiatorPassword: z.string().optional(), environment: z.enum(["SANDBOX", "PRODUCTION"]).default("SANDBOX") })).mutation(async ({ ctx, input }) => {
@@ -85,10 +85,11 @@ export const appRouter = router({
       if (input.tillId && (!till || !Boolean(till.isActive))) throw new TRPCError({ code: "BAD_REQUEST", message: "Selected till is not active or does not belong to this account" });
       // BusinessShortCode must remain the parent shortcode that owns the live STK credentials.
       // A selected child till is the Buy Goods destination and belongs in PartyB.
-      const config = baseConfig;
+      const config = till && String(till.paymentType ?? "BUY_GOODS") === "PAYBILL" ? { ...baseConfig, shortcode: String(till.tillNumber) } : till?.businessShortcode ? { ...baseConfig, shortcode: String(till.businessShortcode) } : baseConfig;
+      const paymentType = till ? String(till.paymentType ?? "BUY_GOODS") : "BUY_GOODS";
       const partyB = till ? String(till.tillNumber) : process.env.MPESA_PARTY_B ?? config.shortcode;
       const accountReference = input.accountReference ?? generatePrefixedReference();
-      const result = await triggerStkPush(config, { phoneNumber: input.phoneNumber, amount: input.amount, accountReference, transactionDesc: input.transactionDesc, callbackUrl: stkCallbackUrl(), partyB });
+      const result = await triggerStkPush(config, { phoneNumber: input.phoneNumber, amount: input.amount, accountReference, transactionDesc: input.transactionDesc, callbackUrl: stkCallbackUrl(), partyB, transactionType: paymentType === "PAYBILL" ? "CustomerPayBillOnline" : "CustomerBuyGoodsOnline" });
       const checkoutRequestId = String(result.CheckoutRequestID ?? result.checkoutRequestId ?? "");
       const merchantRequestId = result.MerchantRequestID ?? result.merchantRequestId;
       if (!checkoutRequestId) throw new TRPCError({ code: "BAD_GATEWAY", message: "Daraja accepted no checkout request ID. No transaction was recorded." });
