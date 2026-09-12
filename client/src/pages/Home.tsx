@@ -253,7 +253,7 @@ export default function Home() {
         </nav>
 
         <div className="sidebar-bottom">
-          <button className="nav-item"><CircleHelp size={17} /><span>Help center</span><ExternalLink size={13} className="external" /></button>
+          <a className="nav-item" href="https://wa.me/254116553618" target="_blank" rel="noreferrer"><CircleHelp size={17} /><span>Help center</span><ExternalLink size={13} className="external" /></a>
         </div>
       </aside>
 
@@ -299,7 +299,7 @@ export default function Home() {
 
           <section className="dashboard-grid tab-overview">
             <div className="panel volume-panel"><div className="panel-heading"><div><h3>Transaction volume</h3><p>Gross collection value processed across your tills</p></div><div className="period-select">All recorded data <ChevronDown size={14} /></div></div><div className="chart-summary"><div><strong>{money(live.collections)}</strong><span>Direct Till collections</span></div><div className="legend"><span><i className="legend-dot collections" /> Collections</span></div></div><div className="bar-chart" aria-label="Transaction volume chart">{chartBars.map((height, index) => <div className="bar-column" key={index}><div className="bar collections" style={{ height: `${height}%` }} /></div>)}</div><div className="chart-axis"><span>Older</span><span>Recent</span></div></div>
-            <div className="panel quick-panel"><div className="panel-heading"><div><h3>Quick actions</h3><p>Common developer tasks</p></div><Zap size={17} className="gold-icon" /></div><div className="quick-list"><button onClick={() => navigate("/collections?from=dashboard")}><span className="quick-icon green"><ArrowDownLeft size={17} /></span><span><strong>Collect payment</strong><small>Trigger an STK Push</small></span><ArrowUpRight size={15} /></button><button onClick={() => navigate("/collections?from=dashboard")}><span className="quick-icon blue"><Store size={17} /></span><span><strong>Pay to a Till</strong><small>Collect directly to PayBill or Buy Goods</small></span><ArrowUpRight size={15} /></button><button onClick={() => setActiveNav("Webhooks")}><span className="quick-icon purple"><Webhook size={17} /></span><span><strong>Configure webhook</strong><small>Receive event updates</small></span><ArrowUpRight size={15} /></button></div></div>
+            <div className="panel quick-panel"><div className="panel-heading"><div><h3>Quick actions</h3><p>Common developer tasks</p></div><Zap size={17} className="gold-icon" /></div><div className="quick-list"><button onClick={() => navigate("/collections?from=dashboard")}><span className="quick-icon green"><ArrowDownLeft size={17} /></span><span><strong>Collect payment</strong><small>Trigger an STK Push</small></span><ArrowUpRight size={15} /></button><button onClick={() => navigate("/collections?from=dashboard")}><span className="quick-icon blue"><Store size={17} /></span><span><strong>Pay to a Till</strong><small>Collect directly to PayBill or Buy Goods</small></span><ArrowUpRight size={15} /></button></div></div>
           </section>
 
           <section className="lower-grid">

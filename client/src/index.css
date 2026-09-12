@@ -420,3 +420,5 @@ h1 { font-size: 27px; line-height: 1.1; letter-spacing: -1px; font-weight: 700; 
 .secret-input-wrap .secret-toggle { position: absolute; right: 5px; }
 .secret-toggle:hover { color: var(--lime); }
 .secret-value .secret-toggle { margin-left: 6px; vertical-align: middle; }
+
+.dashboard-tabs:not([data-active-tab="Webhooks"]) .tab-webhooks { display: none; }
