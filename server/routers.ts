@@ -83,9 +83,12 @@ export const appRouter = router({
       const baseConfig = liveEnabled || !stored ? { consumerKey: process.env.MPESA_CONSUMER_KEY ?? "sandbox", consumerSecret: process.env.MPESA_CONSUMER_SECRET ?? "sandbox", passkey: process.env.MPESA_PASSKEY ?? "sandbox", shortcode: process.env.MPESA_SHORTCODE ?? "4208798", environment: process.env.MPESA_ENVIRONMENT === "PRODUCTION" ? "PRODUCTION" as const : "SANDBOX" as const } : encryptedConfigToDaraja(stored);
       const till = input.tillId ? await getTill(ctx.user.id, input.tillId) : undefined;
       if (input.tillId && (!till || !Boolean(till.isActive))) throw new TRPCError({ code: "BAD_REQUEST", message: "Selected till is not active or does not belong to this account" });
-      const config = till ? { ...baseConfig, shortcode: String(till.tillNumber) } : baseConfig;
+      // BusinessShortCode must remain the parent shortcode that owns the live STK credentials.
+      // A selected child till is the Buy Goods destination and belongs in PartyB.
+      const config = baseConfig;
+      const partyB = till ? String(till.tillNumber) : process.env.MPESA_PARTY_B ?? config.shortcode;
       const accountReference = input.accountReference ?? generatePrefixedReference();
-      const result = await triggerStkPush(config, { phoneNumber: input.phoneNumber, amount: input.amount, accountReference, transactionDesc: input.transactionDesc, callbackUrl: stkCallbackUrl(), partyB: process.env.MPESA_PARTY_B ?? config.shortcode });
+      const result = await triggerStkPush(config, { phoneNumber: input.phoneNumber, amount: input.amount, accountReference, transactionDesc: input.transactionDesc, callbackUrl: stkCallbackUrl(), partyB });
       const checkoutRequestId = String(result.CheckoutRequestID ?? result.checkoutRequestId ?? "");
       const merchantRequestId = result.MerchantRequestID ?? result.merchantRequestId;
       if (!checkoutRequestId) throw new TRPCError({ code: "BAD_GATEWAY", message: "Daraja accepted no checkout request ID. No transaction was recorded." });
