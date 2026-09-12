@@ -80,7 +80,7 @@ export const appRouter = router({
     stkPush: protectedProcedure.input(z.object({ phoneNumber: phoneSchema, amount: amountSchema, tillId: z.number().int().positive().optional(), accountReference: z.string().regex(/^1/, "Reference must start with 1").max(64).optional(), transactionDesc: z.string().max(100).default("LeeTec collection") })).mutation(async ({ ctx, input }) => {
       const stored = await getStoredConfig(ctx.user.id);
       const liveEnabled = process.env.MPESA_LIVE_ENABLED === "true" || process.env.MPESA_ENVIRONMENT === "PRODUCTION";
-      const baseConfig = liveEnabled || !stored ? { consumerKey: process.env.MPESA_CONSUMER_KEY ?? "sandbox", consumerSecret: process.env.MPESA_CONSUMER_SECRET ?? "sandbox", passkey: process.env.MPESA_PASSKEY ?? "sandbox", shortcode: process.env.MPESA_SHORTCODE ?? "4415815", environment: process.env.MPESA_ENVIRONMENT === "PRODUCTION" ? "PRODUCTION" as const : "SANDBOX" as const } : encryptedConfigToDaraja(stored);
+      const baseConfig = liveEnabled || !stored ? { consumerKey: process.env.MPESA_CONSUMER_KEY ?? "sandbox", consumerSecret: process.env.MPESA_CONSUMER_SECRET ?? "sandbox", passkey: process.env.MPESA_PASSKEY ?? "sandbox", shortcode: process.env.MPESA_SHORTCODE ?? "4208798", environment: process.env.MPESA_ENVIRONMENT === "PRODUCTION" ? "PRODUCTION" as const : "SANDBOX" as const } : encryptedConfigToDaraja(stored);
       const till = input.tillId ? await getTill(ctx.user.id, input.tillId) : undefined;
       if (input.tillId && (!till || !Boolean(till.isActive))) throw new TRPCError({ code: "BAD_REQUEST", message: "Selected till is not active or does not belong to this account" });
       const config = till ? { ...baseConfig, shortcode: String(till.tillNumber) } : baseConfig;
@@ -126,7 +126,7 @@ export const appRouter = router({
     registerC2b: protectedProcedure.input(z.object({ tillId: z.number().int().positive().optional(), confirmationUrl: z.string().url(), validationUrl: z.string().url(), responseType: z.enum(["Completed", "Cancelled"]).default("Completed") })).mutation(async ({ ctx, input }) => {
       const stored = await getStoredConfig(ctx.user.id);
       const liveEnabled = process.env.MPESA_LIVE_ENABLED === "true" || process.env.MPESA_ENVIRONMENT === "PRODUCTION";
-      const baseConfig = liveEnabled || !stored ? { consumerKey: process.env.MPESA_CONSUMER_KEY ?? "sandbox", consumerSecret: process.env.MPESA_CONSUMER_SECRET ?? "sandbox", passkey: process.env.MPESA_PASSKEY ?? "sandbox", shortcode: process.env.MPESA_SHORTCODE ?? "4415815", environment: process.env.MPESA_ENVIRONMENT === "PRODUCTION" ? "PRODUCTION" as const : "SANDBOX" as const } : encryptedConfigToDaraja(stored);
+      const baseConfig = liveEnabled || !stored ? { consumerKey: process.env.MPESA_CONSUMER_KEY ?? "sandbox", consumerSecret: process.env.MPESA_CONSUMER_SECRET ?? "sandbox", passkey: process.env.MPESA_PASSKEY ?? "sandbox", shortcode: process.env.MPESA_SHORTCODE ?? "4208798", environment: process.env.MPESA_ENVIRONMENT === "PRODUCTION" ? "PRODUCTION" as const : "SANDBOX" as const } : encryptedConfigToDaraja(stored);
       const till = input.tillId ? await getTill(ctx.user.id, input.tillId) : undefined;
       if (input.tillId && (!till || !Boolean(till.isActive))) throw new TRPCError({ code: "BAD_REQUEST", message: "Selected till is not active or does not belong to this account" });
       const config = till ? { ...baseConfig, shortcode: String(till.tillNumber) } : baseConfig;

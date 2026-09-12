@@ -40,8 +40,10 @@ describe("Daraja integration safeguards", () => {
     expect(result.CheckoutRequestID).toBe("ws_CO_live_1");
     expect(fetchMock.mock.calls[0]?.[0]).toContain("api.safaricom.co.ke/oauth/v1/generate");
     expect(fetchMock.mock.calls[1]?.[0]).toBe("https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest");
-    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)).TransactionType).toBe("CustomerBuyGoodsOnline");
-    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)).PartyB).toBe("4415815");
+    const payload = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    expect(payload.BusinessShortCode).toBe("4208798");
+    expect(payload.TransactionType).toBe("CustomerBuyGoodsOnline");
+    expect(payload.PartyB).toBe("4415815");
     fetchMock.mockRestore();
   });
 });
