@@ -413,3 +413,10 @@ h1 { font-size: 27px; line-height: 1.1; letter-spacing: -1px; font-weight: 700; 
 .site-footer a { display: inline-flex; align-items: center; gap: 4px; color: var(--lime); text-decoration: none; }
 .site-footer a:hover { text-decoration: underline; }
 @media (max-width: 640px) { .site-footer { align-items: flex-start; flex-direction: column; } .site-footer-support { justify-content: flex-start; } }
+
+.secret-input-wrap { position: relative; display: flex; align-items: center; min-width: 0; }
+.secret-input-wrap input { padding-right: 38px; width: 100%; }
+.secret-toggle { display: inline-flex; align-items: center; justify-content: center; border: 0; background: transparent; color: #81919a; cursor: pointer; padding: 6px; }
+.secret-input-wrap .secret-toggle { position: absolute; right: 5px; }
+.secret-toggle:hover { color: var(--lime); }
+.secret-value .secret-toggle { margin-left: 6px; vertical-align: middle; }
