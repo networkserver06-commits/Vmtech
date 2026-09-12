@@ -8,6 +8,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   Bell,
+  BookOpen,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -55,6 +56,7 @@ const navGroups = [
       { label: "API keys", icon: KeyRound },
       { label: "Tills", icon: Store },
       { label: "Webhooks", icon: Webhook },
+      { label: "Documentation", icon: BookOpen },
     ],
   },
 ];
@@ -237,7 +239,7 @@ export default function Home() {
                   <button
                     key={item.label}
                     className={`nav-item ${active ? "active" : ""}`}
-                    onClick={() => { setActiveNav(item.label); setMobileOpen(false); if (item.label === "Collections") navigate("/collections?from=dashboard"); }}
+                    onClick={() => { setActiveNav(item.label); setMobileOpen(false); if (item.label === "Collections") navigate("/collections?from=dashboard"); if (item.label === "Documentation") navigate("/docs"); }}
                   >
                     <Icon size={17} strokeWidth={active ? 2.3 : 1.8} />
                     <span>{item.label}</span>
@@ -250,11 +252,6 @@ export default function Home() {
         </nav>
 
         <div className="sidebar-bottom">
-          <div className="sandbox-card">
-            <div className="sandbox-icon"><ShieldCheck size={16} /></div>
-            <div><strong>{live.environment === "PRODUCTION" ? "Production mode" : live.environment === "SANDBOX" ? "Sandbox mode" : "Payments not configured"}</strong><span>{live.shortcode ? `Shortcode ${live.shortcode}` : "Add M-PESA credentials in Settings"}</span></div>
-            <span className="live-dot" />
-          </div>
           <button className="nav-item"><CircleHelp size={17} /><span>Help center</span><ExternalLink size={13} className="external" /></button>
         </div>
       </aside>
