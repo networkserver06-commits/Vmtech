@@ -394,3 +394,16 @@ h1 { font-size: 27px; line-height: 1.1; letter-spacing: -1px; font-weight: 700; 
 
 .danger-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px; padding: 0 13px; border: 1px solid rgba(236,119,132,.35); border-radius: 7px; color: #ffdce0; background: rgba(236,119,132,.16); font-size: 11px; font-weight: 700; }.danger-button:hover { background: rgba(236,119,132,.25); }.danger-button:disabled { cursor: wait; opacity: .55; }.key-confirm-modal { max-width: 520px; }.key-confirm-modal .modal-note { align-items: flex-start; padding: 11px; border: 1px solid rgba(197,245,110,.14); border-radius: 8px; background: rgba(197,245,110,.04); }.key-confirm-modal .modal-note svg { flex-shrink: 0; color: var(--lime); }
 @media (max-width: 560px) { .key-confirm-modal { width: calc(100vw - 28px); padding: 18px; }.key-confirm-modal .modal-actions { display: grid; grid-template-columns: 1fr 1fr; }.key-confirm-modal .modal-actions button { width: 100%; } }
+
+.dashboard-tabs[data-active-tab="Webhooks"] .tab-overview,
+.dashboard-tabs[data-active-tab="Webhooks"] .tab-wallet,
+.dashboard-tabs[data-active-tab="Webhooks"] .tab-api-keys,
+.dashboard-tabs[data-active-tab="Webhooks"] .tab-tills { display: none; }
+.dashboard-tabs[data-active-tab="Webhooks"]::after { display: none; }
+.webhook-panel { display: block; margin-bottom: 18px; }
+.webhook-list { display: grid; gap: 8px; margin: 16px 0; }
+.webhook-row { display: flex; align-items: center; gap: 14px; padding: 12px; border: 1px solid rgba(189,211,224,.08); border-radius: 8px; background: rgba(255,255,255,.018); }
+.webhook-row .till-details { flex: 1; min-width: 0; }
+.webhook-row .till-details strong { overflow-wrap: anywhere; }
+.webhook-create-row { display: grid; grid-template-columns: 1.2fr 1fr auto; gap: 8px; align-items: center; }
+@media (max-width: 760px) { .webhook-create-row { grid-template-columns: 1fr; } .webhook-row { align-items: flex-start; flex-direction: column; } .webhook-row .danger-button { align-self: stretch; justify-content: center; } }
