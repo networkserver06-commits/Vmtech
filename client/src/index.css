@@ -422,3 +422,6 @@ h1 { font-size: 27px; line-height: 1.1; letter-spacing: -1px; font-weight: 700; 
 .secret-value .secret-toggle { margin-left: 6px; vertical-align: middle; }
 
 .dashboard-tabs:not([data-active-tab="Webhooks"]) .tab-webhooks { display: none; }
+
+.toast-error { border-color: rgba(236,119,132,.45); color: #ffd5da; background: rgba(87,25,34,.96); }
+.toast-success { border-color: rgba(89,217,154,.35); }
