@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   ChevronDown,
   CircleHelp,
-  Code2,
   Copy,
   Eye,
   EyeOff,
@@ -55,7 +54,6 @@ const navGroups = [
       { label: "API keys", icon: KeyRound },
       { label: "Tills", icon: Store },
       { label: "Webhooks", icon: Webhook },
-      { label: "API reference", icon: Code2 },
     ],
   },
 ];
@@ -230,7 +228,7 @@ export default function Home() {
                   <button
                     key={item.label}
                     className={`nav-item ${active ? "active" : ""}`}
-                    onClick={() => { setActiveNav(item.label); setMobileOpen(false); if (item.label === "Collections") navigate("/collections?from=dashboard"); if (item.label === "API reference") navigate("/documentation"); }}
+                    onClick={() => { setActiveNav(item.label); setMobileOpen(false); if (item.label === "Collections") navigate("/collections?from=dashboard"); }}
                   >
                     <Icon size={17} strokeWidth={active ? 2.3 : 1.8} />
                     <span>{item.label}</span>
@@ -268,7 +266,7 @@ export default function Home() {
         <div className="content-wrap dashboard-tabs" data-active-tab={activeNav}>
           <section className="page-heading">
             <div><div className="eyebrow">{activeNav.toUpperCase()} <span className="eyebrow-line" /></div><h1>{activeNav === "Overview" ? greeting : activeNav}</h1><p>{activeNav === "Overview" ? "Monitor your money flows and keep your integrations moving." : `Manage your ${activeNav.toLowerCase()} in this dedicated workspace tab.`}</p></div>
-            <div className="heading-actions"><Button className="secondary-button" onClick={() => navigate("/documentation") }><Code2 size={16} /> API reference</Button><Button className="primary-button" onClick={() => navigate("/collections?from=dashboard") }><Plus size={17} /> New collection</Button></div>
+            <div className="heading-actions"><Button className="primary-button" onClick={() => navigate("/collections?from=dashboard") }><Plus size={17} /> New collection</Button></div>
           </section>
 
           <section className="hero-strip">
@@ -292,7 +290,7 @@ export default function Home() {
 
           <section className="dashboard-grid tab-overview">
             <div className="panel volume-panel"><div className="panel-heading"><div><h3>Transaction volume</h3><p>Gross collection value processed across your tills</p></div><div className="period-select">All recorded data <ChevronDown size={14} /></div></div><div className="chart-summary"><div><strong>{money(live.collections)}</strong><span>Direct Till collections</span></div><div className="legend"><span><i className="legend-dot collections" /> Collections</span></div></div><div className="bar-chart" aria-label="Transaction volume chart">{chartBars.map((height, index) => <div className="bar-column" key={index}><div className="bar collections" style={{ height: `${height}%` }} /></div>)}</div><div className="chart-axis"><span>Older</span><span>Recent</span></div></div>
-            <div className="panel quick-panel"><div className="panel-heading"><div><h3>Quick actions</h3><p>Common developer tasks</p></div><Zap size={17} className="gold-icon" /></div><div className="quick-list"><button onClick={() => navigate("/collections?from=dashboard")}><span className="quick-icon green"><ArrowDownLeft size={17} /></span><span><strong>Collect payment</strong><small>Trigger an STK Push</small></span><ArrowUpRight size={15} /></button><button onClick={() => navigate("/collections?from=dashboard")}><span className="quick-icon blue"><Store size={17} /></span><span><strong>Pay to a Till</strong><small>Collect directly to PayBill or Buy Goods</small></span><ArrowUpRight size={15} /></button><button onClick={() => setActiveNav("Webhooks")}><span className="quick-icon purple"><Webhook size={17} /></span><span><strong>Configure webhook</strong><small>Receive event updates</small></span><ArrowUpRight size={15} /></button></div><div className="quick-footer"><Terminal size={15} /> <span>Need help integrating?</span><button onClick={() => navigate("/documentation")}>Read the docs <ArrowUpRight size={13} /></button></div></div>
+            <div className="panel quick-panel"><div className="panel-heading"><div><h3>Quick actions</h3><p>Common developer tasks</p></div><Zap size={17} className="gold-icon" /></div><div className="quick-list"><button onClick={() => navigate("/collections?from=dashboard")}><span className="quick-icon green"><ArrowDownLeft size={17} /></span><span><strong>Collect payment</strong><small>Trigger an STK Push</small></span><ArrowUpRight size={15} /></button><button onClick={() => navigate("/collections?from=dashboard")}><span className="quick-icon blue"><Store size={17} /></span><span><strong>Pay to a Till</strong><small>Collect directly to PayBill or Buy Goods</small></span><ArrowUpRight size={15} /></button><button onClick={() => setActiveNav("Webhooks")}><span className="quick-icon purple"><Webhook size={17} /></span><span><strong>Configure webhook</strong><small>Receive event updates</small></span><ArrowUpRight size={15} /></button></div></div>
           </section>
 
           <section className="lower-grid">
@@ -307,7 +305,7 @@ export default function Home() {
             <div className="fee-note"><ShieldCheck size={15} /><span>Platform fee: KES 1 for payments up to KES 50, then 1.5%. It is charged from your dashboard wallet after a successful STK Push.</span></div>
           </section>
 
-          <footer className="footer-note"><span><span className="footer-dot" /> All systems operational</span><span>LeeTec Engine v1.0 <span className="footer-sep">•</span> <button onClick={() => notify("Status page is opening soon")}>Status</button> <span className="footer-sep">•</span> <button onClick={() => notify("Documentation is opening soon")}>Documentation</button></span></footer>
+          <footer className="footer-note"><span><span className="footer-dot" /> All systems operational</span><span>LeeTec Engine v1.0 <span className="footer-sep">•</span> <button onClick={() => notify("Status page is opening soon")}>Status</button></span></footer>
         </div>
       </main>
       {toast && <div className="toast"><CheckCircle2 size={16} /> {toast}</div>}
