@@ -5,7 +5,7 @@ import { getSessionCookieOptions } from "./_core/cookies.js";
 import { systemRouter } from "./_core/systemRouter.js";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc.js";
 import { isConfiguredAdminEmail } from "./_core/env.js";
-import { adjustWallet, calculatePlatformFee, createCollection, createPayout, createReservedPayout, createTill, createWebhook, deleteApiKey, deleteCollection, deletePayout, deleteTill, deleteWebhook, getAdminOverview, getOverviewData, getStoredMpesaConfig, getSystemSettings, getTill, getWalletBalance, insertApiKey, insertTransaction, insertWalletDeposit, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayouts, listTills, listWalletDeposits, listWalletLedger, listWebhooks, revokeApiKey, saveMpesaConfig, setUserSuspended, testWebhook, updateCollection, updatePayout, updateTill, updateUserProfile, writeAuditLog } from "./db.js";
+import { adjustWallet, calculatePlatformFee, createCollection, createPayout, createPayoutRequest, createReservedPayout, createTill, createWebhook, deleteApiKey, deleteCollection, deletePayout, deleteTill, deleteWebhook, getAdminOverview, getOverviewData, getStoredMpesaConfig, getSystemSettings, getTill, getWalletBalance, insertApiKey, insertTransaction, insertWalletDeposit, listAdminPayoutRequests, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayoutRequests, listPayouts, listTills, listWalletDeposits, listWalletLedger, listWebhooks, revokeApiKey, saveMpesaConfig, setUserSuspended, testWebhook, updateCollection, updatePayout, updateTill, updateUserProfile, writeAuditLog } from "./db.js";
 import { createSecurityCredential, encryptSecret, generateApiKey, generatePrefixedReference, getStkCallbackToken, hashApiKey } from "./security.js";
 import { encryptedConfigToDaraja, registerC2bUrls, triggerStkPush } from "./mpesa.js";
 
@@ -56,6 +56,12 @@ export const appRouter = router({
     walletBalance: protectedProcedure.query(({ ctx }) => getWalletBalance(ctx.user.id)),
     listWalletDeposits: protectedProcedure.query(({ ctx }) => listWalletDeposits(ctx.user.id)),
     listCollections: protectedProcedure.query(({ ctx }) => listCollections(ctx.user.id)),
+    listPayoutRequests: protectedProcedure.query(({ ctx }) => listPayoutRequests(ctx.user.id)),
+    requestPayout: protectedProcedure.input(z.object({ transactionId: z.number().int().positive(), amount: amountSchema, destinationType: z.enum(["PHONE", "TILL"]), destination: z.string().trim().min(5).max(20) })).mutation(async ({ ctx, input }) => {
+      const result = await createPayoutRequest({ userId: ctx.user.id, ...input });
+      await writeAuditLog({ userId: ctx.user.id, action: "PAYOUT_REQUESTED", details: { payoutRequestId: result.id, transactionId: input.transactionId, amount: input.amount, destinationType: input.destinationType, destination: input.destination, email: ctx.user.email } });
+      return result;
+    }),
     createCollection: protectedProcedure.input(z.object({ phoneNumber: phoneSchema, amount: amountSchema, accountReference: z.string().regex(/^1/, "Reference must start with 1").max(64) })).mutation(({ ctx, input }) => createCollection({ userId: ctx.user.id, checkoutRequestId: `manual_${Date.now()}`, accountReference: input.accountReference, phoneNumber: input.phoneNumber, amount: input.amount })),
     updateCollection: protectedProcedure.input(z.object({ id: z.number().int().positive(), phoneNumber: phoneSchema, amount: amountSchema, accountReference: z.string().regex(/^1/).max(64) })).mutation(({ ctx, input }) => updateCollection(ctx.user.id, input.id, input)),
     deleteCollection: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteCollection(ctx.user.id, input.id)),
@@ -151,6 +157,7 @@ export const appRouter = router({
     overview: adminProcedure.query(() => getAdminOverview()),
     users: adminProcedure.query(() => listAdminUsers()),
     walletLedger: adminProcedure.query(() => listWalletLedger()),
+    payoutRequests: adminProcedure.query(() => listAdminPayoutRequests()),
     auditLogs: adminProcedure.query(() => listAuditLogs()),
     settings: adminProcedure.query(() => getSystemSettings()),
     setSuspended: adminProcedure.input(z.object({ userId: z.number().int().positive(), isSuspended: z.boolean() })).mutation(async ({ ctx, input }) => { const result = await setUserSuspended(input.userId, input.isSuspended); await writeAuditLog({ userId: ctx.user.id, action: input.isSuspended ? "SUSPEND_USER" : "RESTORE_USER", details: { targetUserId: input.userId } }); return result; }),
