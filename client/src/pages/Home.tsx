@@ -268,8 +268,8 @@ export default function Home() {
 
         <div className="workspace-switcher">
           <div className="workspace-avatar">LT</div>
-          <div className="workspace-copy"><strong>LeeTec workspace</strong><span>Production</span></div>
-          <ChevronDown size={15} className="muted-icon" />
+          <div className="workspace-copy"><strong>LeeTec workspace</strong><span>Payments workspace</span></div>
+          <div className="workspace-switcher-meta"><span className="workspace-status"><span className="live-dot" /> Live</span><ChevronDown size={15} className="muted-icon" /></div>
         </div>
 
         <div className="sidebar-quick-actions">
@@ -314,11 +314,11 @@ export default function Home() {
       <main className="main-content">
         <header className="topbar">
           <button className="mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={20} /></button>
-          <div className="breadcrumbs"><span>Workspace</span><span className="slash">/</span><strong>{activeNav}</strong></div>
+          <div className="breadcrumbs"><span className="breadcrumb-home"><LayoutDashboard size={13} /> Workspace</span><span className="slash">/</span><strong>{activeNav}</strong></div>
           <div className="topbar-actions">
-            <div className="search-wrap"><Search size={16} /><Input placeholder="Search" /><kbd>⌘ K</kbd></div>
+            <div className="search-wrap"><Search size={16} /><Input placeholder="Search workspace" aria-label="Search workspace" /><kbd>⌘ K</kbd></div>
             <button className="top-icon" aria-label="Notifications"><Bell size={18} /><span className="notification-dot" /></button>
-            <div className="top-profile"><div className="profile-avatar small">{user.name?.slice(0, 2).toUpperCase() ?? "ME"}</div><ChevronDown size={14} /></div>
+            <button className="top-profile" aria-label="Open profile settings" onClick={() => { setProfileName(user.name ?? ""); setProfileOpen(true); }}><div className="profile-avatar small">{user.name?.slice(0, 2).toUpperCase() ?? "ME"}</div><span className="top-profile-name">{user.name?.split(" ")[0] ?? "Account"}</span><ChevronDown size={14} /></button>
           </div>
         </header>
 
