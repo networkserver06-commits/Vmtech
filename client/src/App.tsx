@@ -24,6 +24,7 @@ function Router() {
       <Route path="/documentation" component={Documentation} />
       <Route path="/pay" component={PaymentLinkCheckout} />
       <Route path="/404" component={NotFound} />
+      <Route path="/:merchantSlug" component={PaymentLinkCheckout} />
       <Route component={NotFound} />
     </Switch>
   );
