@@ -159,8 +159,8 @@ export default function Home() {
   const overview = trpc.engine.overview.useQuery(undefined, { enabled: Boolean(user), refetchInterval: 5000, refetchOnWindowFocus: true });
   const apiKeys = trpc.engine.listApiKeys.useQuery(undefined, { enabled: Boolean(user), refetchOnWindowFocus: true });
   const tills = trpc.engine.listTills.useQuery(undefined, { enabled: Boolean(user), refetchOnWindowFocus: true });
-  const walletDeposits = trpc.engine.listWalletDeposits.useQuery(undefined, { enabled: Boolean(user), refetchOnWindowFocus: true });
-  const tillTransactions = trpc.engine.listCollections.useQuery(undefined, { enabled: Boolean(user), refetchOnWindowFocus: true });
+  const walletDeposits = trpc.engine.listWalletDeposits.useQuery(undefined, { enabled: Boolean(user), refetchInterval: 5000, refetchIntervalInBackground: true, refetchOnWindowFocus: true });
+  const tillTransactions = trpc.engine.listCollections.useQuery(undefined, { enabled: Boolean(user), refetchInterval: 5000, refetchIntervalInBackground: true, refetchOnWindowFocus: true });
   const webhooks = trpc.engine.listWebhooks.useQuery(undefined, { enabled: Boolean(user), refetchOnWindowFocus: true });
   const mutationError = (error: unknown) => { const message = error instanceof Error ? error.message : String((error as { message?: unknown })?.message ?? "Request failed. Please try again."); return message && message !== "undefined" ? message : "Request failed. Please try again."; };
   const createApiKey = trpc.engine.createApiKey.useMutation({ onSuccess: (result) => { setNewSecret(result.key); setShowSecret(true); setKeyName(""); apiKeys.refetch(); }, onError: (error) => notify(mutationError(error), "error") });

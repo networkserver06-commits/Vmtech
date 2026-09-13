@@ -25,8 +25,8 @@ export default function Collections() {
   const [editing, setEditing] = useState<Collection | null>(null);
   const [form, setForm] = useState({ phone: "", amount: "", accountReference: "", channel: "STK Push" as Collection["channel"], tillId: "" });
   const [toast, setToast] = useState<string | null>(null);
-  const overview = trpc.engine.overview.useQuery(undefined, { enabled: Boolean(user), refetchOnWindowFocus: true });
-  const collections = trpc.engine.listCollections.useQuery(undefined, { enabled: Boolean(user), refetchOnWindowFocus: true });
+  const overview = trpc.engine.overview.useQuery(undefined, { enabled: Boolean(user), refetchInterval: 5000, refetchIntervalInBackground: true, refetchOnWindowFocus: true });
+  const collections = trpc.engine.listCollections.useQuery(undefined, { enabled: Boolean(user), refetchInterval: 5000, refetchIntervalInBackground: true, refetchOnWindowFocus: true });
   const tills = trpc.engine.listTills.useQuery(undefined, { enabled: Boolean(user), refetchOnWindowFocus: true });
   const refresh = () => { collections.refetch(); overview.refetch(); };
   const stkPush = trpc.engine.stkPush.useMutation({ onSuccess: (result) => { refresh(); setModal(null); setToast(`STK prompt sent${result.till?.name ? ` to ${result.till.name}` : ""}. Awaiting customer confirmation.`); }, onError: (error) => setToast(error.message) });
