@@ -19,22 +19,23 @@ export default function Admin() {
   const [adjusting, setAdjusting] = useState<AdminUser | null>(null);
   const [adjustment, setAdjustment] = useState({ amount: "", type: "CREDIT", reason: "" });
   const [notice, setNotice] = useState<string | null>(null);
+  const [noticeTone, setNoticeTone] = useState<"success" | "error">("success");
   const [ledgerQuery, setLedgerQuery] = useState("");
   const isAdmin = user?.role?.toUpperCase() === "ADMIN";
   const adminOverview = trpc.admin.overview.useQuery(undefined, { enabled: Boolean(isAdmin), refetchOnWindowFocus: true });
   const adminHealth = trpc.admin.health.useQuery(undefined, { enabled: Boolean(isAdmin), refetchOnWindowFocus: true });
   const walletLedger = trpc.admin.walletLedger.useQuery(undefined, { enabled: Boolean(isAdmin && tab === "ledger"), refetchOnWindowFocus: true });
   const adminUsers = trpc.admin.users.useQuery(undefined, { enabled: Boolean(isAdmin), retry: false, refetchOnWindowFocus: true });
-  const suspendMutation = trpc.admin.setSuspended.useMutation();
-  const walletMutation = trpc.admin.adjustWallet.useMutation();
+  const suspendMutation = trpc.admin.setSuspended.useMutation({ onError: (error) => showNotice(error.message || "Account status update failed", "error") });
+  const walletMutation = trpc.admin.adjustWallet.useMutation({ onError: (error) => showNotice(error.message || "Wallet adjustment failed", "error") });
   useEffect(() => { if (adminUsers.data) setUsers(adminUsers.data.map((item) => ({ id: item.id, accountId: item.accountId ?? String(item.id), name: item.name ?? "Unnamed developer", email: item.email ?? "No email", role: item.role.toUpperCase(), balance: item.balance, isSuspended: item.isSuspended, lastSignedIn: item.lastSignedIn ? new Date(item.lastSignedIn).toLocaleString() : "Never" }))); }, [adminUsers.data]);
 
   const filteredUsers = useMemo(() => users.filter((item) => `${item.accountId} ${item.name} ${item.email}`.toLowerCase().includes(query.toLowerCase())), [users, query]);
   const overview = adminOverview.data ?? { developers: 0, walletFloat: 0, activeIntegrations: 0, suspendedAccounts: 0, successfulTransactions: 0, totalTransactions: 0, environment: "NOT_CONFIGURED", shortcode: null };
   const liveRate = overview.totalTransactions ? Math.round((overview.successfulTransactions / overview.totalTransactions) * 1000) / 10 : 0;
-  const showNotice = (text: string) => { setNotice(text); window.setTimeout(() => setNotice(null), 2800); };
-  const toggleSuspend = (id: number) => { const target = users.find((item) => item.id === id); if (!target) return; suspendMutation.mutate({ userId: id, isSuspended: !target.isSuspended }); setUsers((items) => items.map((item) => item.id === id ? { ...item, isSuspended: !item.isSuspended } : item)); showNotice(target.isSuspended ? "Account restored" : "Account suspended"); };
-  const applyAdjustment = () => { if (!adjusting || !Number(adjustment.amount) || !adjustment.reason) return; const amount = Number(adjustment.amount); walletMutation.mutate({ userId: adjusting.id, amount, type: adjustment.type as "CREDIT" | "DEBIT", reason: adjustment.reason }); setUsers((items) => items.map((item) => item.id === adjusting.id ? { ...item, balance: Math.max(0, item.balance + (adjustment.type === "CREDIT" ? amount : -amount)) } : item)); setAdjusting(null); showNotice("Wallet ledger adjustment recorded"); };
+  const showNotice = (text: string, tone: "success" | "error" = "success") => { setNotice(text); setNoticeTone(tone); window.setTimeout(() => setNotice(null), 2800); };
+  const toggleSuspend = (id: number) => { const target = users.find((item) => item.id === id); if (!target) return showNotice("Developer account was not found", "error"); suspendMutation.mutate({ userId: id, isSuspended: !target.isSuspended }); setUsers((items) => items.map((item) => item.id === id ? { ...item, isSuspended: !item.isSuspended } : item)); showNotice(target.isSuspended ? "Account restored" : "Account suspended"); };
+  const applyAdjustment = () => { if (!adjusting) return showNotice("Select a developer account first", "error"); const amount = Number(adjustment.amount); if (!Number.isFinite(amount) || amount <= 0) return showNotice("Enter a wallet amount greater than zero", "error"); if (amount > 1500000) return showNotice("Wallet adjustment cannot exceed KES 1,500,000", "error"); if (adjustment.type === "DEBIT" && amount > adjusting.balance) return showNotice("Debit amount exceeds the available wallet balance", "error"); if (adjustment.reason.trim().length < 3) return showNotice("Enter an audit reason with at least 3 characters", "error"); walletMutation.mutate({ userId: adjusting.id, amount, type: adjustment.type as "CREDIT" | "DEBIT", reason: adjustment.reason.trim() }); setUsers((items) => items.map((item) => item.id === adjusting.id ? { ...item, balance: Math.max(0, item.balance + (adjustment.type === "CREDIT" ? amount : -amount)) } : item)); setAdjusting(null); showNotice("Wallet ledger adjustment recorded"); };
 
   if (loading) return <div className="auth-state"><div className="brand-mark"><Zap size={17} /></div><span>Loading secure admin session…</span></div>;
   if (!user) return <div className="auth-state"><div className="auth-state-card"><div className="brand-mark"><Zap size={17} /></div><LockKeyhole size={26} /><h1>Admin sign-in required</h1><p>Sign in through the unified LeeTec Engine login to continue.</p><Button className="primary-button" onClick={() => { window.location.href = "/login"; }}>Continue to login</Button></div></div>;
