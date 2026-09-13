@@ -5,9 +5,9 @@ import { getSessionCookieOptions } from "./_core/cookies.js";
 import { systemRouter } from "./_core/systemRouter.js";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc.js";
 import { isConfiguredAdminEmail } from "./_core/env.js";
-import { adjustWallet, calculatePlatformFee, createCollection, createPayout, createPayoutRecord, createTill, createWebhook, deleteCollection, deletePayout, deleteTill, deleteWebhook, getAdminOverview, getOverviewData, getStoredMpesaConfig, getSystemSettings, getTill, getWalletBalance, insertApiKey, insertTransaction, insertWalletDeposit, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayouts, listTills, listWalletDeposits, listWalletLedger, listWebhooks, revokeApiKey, saveMpesaConfig, setUserSuspended, updateCollection, updatePayout, updateTill, updateUserProfile, writeAuditLog } from "./db.js";
+import { adjustWallet, calculatePlatformFee, createCollection, createPayout, createTill, createWebhook, deleteCollection, deletePayout, deleteTill, deleteWebhook, getAdminOverview, getOverviewData, getStoredMpesaConfig, getSystemSettings, getTill, getWalletBalance, insertApiKey, insertTransaction, insertWalletDeposit, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayouts, listTills, listWalletDeposits, listWalletLedger, listWebhooks, revokeApiKey, saveMpesaConfig, setUserSuspended, updateCollection, updatePayout, updateTill, updateUserProfile, writeAuditLog } from "./db.js";
 import { createSecurityCredential, encryptSecret, generateApiKey, generatePrefixedReference, getStkCallbackToken, hashApiKey } from "./security.js";
-import { encryptedConfigToDaraja, registerC2bUrls, triggerB2cPayout, triggerStkPush } from "./mpesa.js";
+import { encryptedConfigToDaraja, registerC2bUrls, triggerStkPush } from "./mpesa.js";
 
 /** Convert common Kenyan mobile formats to the Daraja-required 254XXXXXXXXX format. */
 export function normalizeKenyanPhone(value: string): string {
@@ -97,7 +97,7 @@ export const appRouter = router({
       if (liveEnabled && partyB !== approvedPartyB) throw new TRPCError({ code: "BAD_REQUEST", message: "This Till is not the approved production Buy Goods Till." });
       const config = { ...baseConfig, shortcode: process.env.MPESA_SHORTCODE ?? baseConfig.shortcode };
       const accountReference = input.accountReference ?? generatePrefixedReference();
-      const result = await triggerStkPush(config, { phoneNumber: input.phoneNumber, amount: input.amount, accountReference, transactionDesc: input.transactionDesc, callbackUrl: stkCallbackUrl(), partyB, transactionType: liveEnabled ? "CustomerBuyGoodsOnline" : paymentType === "PAYBILL" ? "CustomerPayBillOnline" : "CustomerBuyGoodsOnline" });
+      const result = await triggerStkPush(config, { phoneNumber: input.phoneNumber, amount: input.amount, accountReference, transactionDesc: input.transactionDesc, callbackUrl: stkCallbackUrl(), partyB, transactionType: "CustomerBuyGoodsOnline" });
       const checkoutRequestId = String(result.CheckoutRequestID ?? result.checkoutRequestId ?? "");
       const merchantRequestId = result.MerchantRequestID ?? result.merchantRequestId;
       if (!checkoutRequestId) throw new TRPCError({ code: "BAD_GATEWAY", message: "Daraja accepted no checkout request ID. No transaction was recorded." });
@@ -112,7 +112,7 @@ export const appRouter = router({
       const config = liveEnabled ? environmentConfig : stored ? encryptedConfigToDaraja(stored) : environmentConfig;
       const accountReference = `1WALLET${Date.now().toString().slice(-10)}`;
       try {
-        const result = await triggerStkPush(config, { phoneNumber: input.phoneNumber, amount: input.amount, accountReference, transactionDesc: "LeeTec wallet deposit", callbackUrl: stkCallbackUrl(), partyB: process.env.MPESA_PARTY_B });
+        const result = await triggerStkPush(config, { phoneNumber: input.phoneNumber, amount: input.amount, accountReference, transactionDesc: "LeeTec wallet deposit", callbackUrl: stkCallbackUrl(), partyB: process.env.MPESA_PARTY_B, transactionType: "CustomerBuyGoodsOnline" });
         const checkoutRequestId = String(result.CheckoutRequestID ?? result.checkoutRequestId ?? "");
         const merchantRequestId = result.MerchantRequestID ?? result.merchantRequestId;
         if (!checkoutRequestId) throw new TRPCError({ code: "BAD_GATEWAY", message: "Daraja accepted no checkout request ID." });
@@ -128,11 +128,8 @@ export const appRouter = router({
     payout: protectedProcedure.input(z.object({ phoneNumber: phoneSchema, amount: amountSchema, commandId: z.enum(["BusinessPayment", "SalaryPayment"]).default("BusinessPayment") })).mutation(async ({ ctx, input }) => {
       const available = await getWalletBalance(ctx.user.id);
       if (available < input.amount) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Insufficient wallet balance" });
-      const stored = await getStoredConfig(ctx.user.id);
-      const config = stored ? encryptedConfigToDaraja(stored) : { consumerKey: process.env.MPESA_CONSUMER_KEY ?? "sandbox", consumerSecret: process.env.MPESA_CONSUMER_SECRET ?? "sandbox", passkey: process.env.MPESA_PASSKEY ?? "sandbox", shortcode: process.env.MPESA_SHORTCODE ?? "4208798", environment: process.env.MPESA_ENVIRONMENT === "PRODUCTION" ? "PRODUCTION" as const : "SANDBOX" as const };
-      const result = await triggerB2cPayout(config, { phoneNumber: input.phoneNumber, amount: input.amount, commandId: input.commandId, queueTimeoutUrl: process.env.B2C_TIMEOUT_URL ?? "https://leetec.online/api/v1/callbacks/b2c/timeout", resultUrl: process.env.B2C_RESULT_URL ?? "https://leetec.online/api/v1/callbacks/b2c/result" });
-      await createPayoutRecord({ userId: ctx.user.id, phoneNumber: input.phoneNumber, amount: input.amount, commandId: input.commandId, originatorConversationId: result.OriginatorConversationID ?? result.originatorConversationId, conversationId: result.ConversationID ?? result.conversationId });
-      return result;
+      const result = await createPayout({ userId: ctx.user.id, recipientPhone: input.phoneNumber, amount: input.amount, commandId: input.commandId, status: "MANUAL_REVIEW" });
+      return { status: "MANUAL_REVIEW", message: "Payout recorded for manual portal processing. No B2C or B2B API call was made.", payoutId: result?.lastInsertRowid ?? null };
     }),
     registerC2b: protectedProcedure.input(z.object({ tillId: z.number().int().positive().optional(), confirmationUrl: z.string().url(), validationUrl: z.string().url(), responseType: z.enum(["Completed", "Cancelled"]).default("Completed") })).mutation(async ({ ctx, input }) => {
       const stored = await getStoredConfig(ctx.user.id);

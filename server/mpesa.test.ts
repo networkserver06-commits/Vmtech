@@ -47,17 +47,17 @@ describe("Daraja integration safeguards", () => {
     fetchMock.mockRestore();
   });
 
-  it("supports PayBill STK routing", async () => {
+  it("forces CustomerBuyGoodsOnline for every STK request", async () => {
     process.env.MPESA_LIVE_ENABLED = "true";
     const fetchMock = vi.spyOn(globalThis, "fetch");
     fetchMock
       .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "live-token" }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ResponseCode: "0", CheckoutRequestID: "ws_CO_paybill", MerchantRequestID: "merchant-paybill" }), { status: 200 }));
-    await triggerStkPush({ consumerKey: "live-key", consumerSecret: "live-secret", passkey: "live-passkey", shortcode: "600123", environment: "PRODUCTION" }, { phoneNumber: "254712345678", amount: 10, accountReference: "1PAYBILL", transactionDesc: "PayBill test", callbackUrl: "https://example.com/stk", partyB: "600123", transactionType: "CustomerPayBillOnline" });
+    await triggerStkPush({ consumerKey: "live-key", consumerSecret: "live-secret", passkey: "live-passkey", shortcode: "600123", environment: "PRODUCTION" }, { phoneNumber: "254712345678", amount: 10, accountReference: "1BUYGOODS", transactionDesc: "Buy Goods test", callbackUrl: "https://example.com/stk", partyB: "600123" });
     const payload = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
     expect(payload.BusinessShortCode).toBe("600123");
     expect(payload.PartyB).toBe("600123");
-    expect(payload.TransactionType).toBe("CustomerPayBillOnline");
+    expect(payload.TransactionType).toBe("CustomerBuyGoodsOnline");
     fetchMock.mockRestore();
   });
 });

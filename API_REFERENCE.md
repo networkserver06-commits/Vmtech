@@ -1,16 +1,21 @@
 # LeeTec Engine API Reference
 
-LeeTec Engine provides server-to-server payment operations, a complete transaction history endpoint, and signed webhook events. All requests must use HTTPS and must be made from a trusted backend. Never expose an API key in browser, mobile, or client-side JavaScript.
+LeeTec Engine supports **central inbound collections only**. The supported payment capabilities are:
 
-## Base URL
+- **C2B** direct payments to the registered child Till.
+- **STK Push (Lipa Na M-Pesa Online)** using the Head Office shortcode for API authentication and the child Till as `PartyB`.
+
+LeeTec does **not** call B2C, B2B, or direct disbursement APIs. Portal payout requests are recorded as manual ledger records for administrator processing.
+
+## Base URL and API key
 
 ```text
 https://leetec.online
 ```
 
-## Authentication
+Create a LeeTec API key in **Workspace → API keys**. The secret is shown once. Store it only on your backend, for example as `LEETEC_API_KEY`.
 
-Use either header:
+Use either supported authentication header:
 
 ```http
 Authorization: Bearer sk_live_your_secret_key
@@ -24,10 +29,10 @@ x-api-key: sk_live_your_secret_key
 
 A missing key returns `401`. An invalid, revoked, or suspended key returns `403`.
 
-## Create an STK Push
+## STK Push — Lipa Na M-Pesa Online
 
 ```http
-POST /api/v1/stkpush
+POST https://leetec.online/api/v1/stkpush
 Content-Type: application/json
 Authorization: Bearer sk_live_your_secret_key
 ```
@@ -44,9 +49,17 @@ Request:
 }
 ```
 
-`phoneNumber` must be a Kenyan number accepted by the LeeTec validation rules. `amount` must be positive. `accountReference` is optional; if omitted, LeeTec generates an account-based reference automatically. When supplied, it must start with `1` and be at most 64 characters. `transactionDesc` is optional. `tillId` is optional and must belong to an active destination owned by the authenticated account.
+The LeeTec server authenticates the Daraja request with the **Head Office shortcode**. A selected active child Till is sent as `PartyB`. The request always uses:
 
-An accepted request returns the Daraja response, including `CheckoutRequestID`, plus the LeeTec `accountReference`, selected till details, and estimated platform fee. Acceptance means the request was sent to Safaricom; it does not mean the customer has paid. The final status is confirmed asynchronously through the callback and transaction history.
+```json
+{
+  "TransactionType": "CustomerBuyGoodsOnline"
+}
+```
+
+`phoneNumber` must be a valid Kenyan number and `amount` must be positive. `accountReference` is optional; if omitted, LeeTec generates an account-based reference. When supplied, it must start with `1` and be at most 64 characters. `transactionDesc` is optional. `tillId` must belong to an active Till owned by the account.
+
+A successful HTTP response means Daraja accepted the STK request. It does **not** mean the customer has paid. Save the returned `CheckoutRequestID`, then wait for the callback and confirm the final `SUCCESS` or `FAILED` record in transaction history.
 
 Example response:
 
@@ -57,22 +70,37 @@ Example response:
   "MerchantRequestID": "29115-...",
   "CheckoutRequestID": "ws_CO_...",
   "accountReference": "1ORDER001",
-  "till": null,
+  "till": {
+    "id": 123,
+    "number": "123456",
+    "name": "Main Till"
+  },
   "estimatedPlatformFee": 1,
   "estimatedNetAmount": 9
 }
 ```
 
+## C2B direct Till payments
+
+Customers can pay the registered child Till directly from the M-PESA menu. The Daraja C2B confirmation callback sends the transaction to LeeTec, which validates the Till, stores the transaction, updates the live dashboard, and dispatches signed webhooks.
+
+C2B callback routes managed by LeeTec:
+
+```text
+POST https://leetec.online/api/v1/callbacks/c2b/validation
+POST https://leetec.online/api/v1/callbacks/c2b/confirmation
+```
+
+The C2B confirmation record includes the M-PESA transaction ID, amount, customer phone number, Till number, account reference, receipt, and `SUCCESS` status. Duplicate confirmations are ignored safely.
+
 ## Complete transaction history
 
 ```http
-GET /api/v1/transactions
+GET https://leetec.online/api/v1/transactions
 Authorization: Bearer sk_live_your_secret_key
 ```
 
-This endpoint returns the complete current history for the authenticated account, including collections, payouts, and wallet deposits. Results are sorted newest first and are returned with `Cache-Control: no-store` so clients do not reuse stale statuses.
-
-Example response:
+This endpoint returns the complete current history for the authenticated account, including C2B/STK collections, manual ledger payout requests, and wallet deposits. Results are newest first and use `Cache-Control: no-store`.
 
 ```json
 {
@@ -80,7 +108,7 @@ Example response:
     {
       "kind": "COLLECTION",
       "id": 123,
-      "checkoutRequestId": "ws_CO_...",
+      "checkoutRequestId": "C2B_MPESA123",
       "accountReference": "1ORDER001",
       "phoneNumber": "254712345678",
       "amount": "10.00",
@@ -94,21 +122,12 @@ Example response:
       "id": 12,
       "recipientPhone": "254712345678",
       "amount": "10.00",
-      "status": "PENDING",
-      "conversationId": "...",
+      "status": "MANUAL_REVIEW",
+      "commandId": "BusinessPayment",
       "createdAt": "2026-09-13T07:01:00.000Z"
-    },
-    {
-      "kind": "WALLET_DEPOSIT",
-      "id": 8,
-      "checkoutRequestId": "ws_CO_...",
-      "phoneNumber": "254712345678",
-      "amount": "100.00",
-      "status": "SUCCESS",
-      "createdAt": "2026-09-13T07:02:00.000Z"
     }
   ],
-  "count": 3,
+  "count": 2,
   "meta": {
     "resource": "transactions",
     "complete": true,
@@ -117,31 +136,15 @@ Example response:
 }
 ```
 
-Possible statuses are `PENDING`, `SUCCESS`, and `FAILED`. Fulfill an order only after the record is `SUCCESS` and, for a collection, a validated M-PESA receipt is present.
+Possible collection statuses are `PENDING`, `SUCCESS`, and `FAILED`. Manual payout records use `MANUAL_REVIEW` until an administrator processes them outside the portal. Fulfill customer orders only after a collection is `SUCCESS` and the receipt has been validated.
 
-## Payouts
+## Manual portal payout ledger
 
-```http
-POST /api/v1/payout
-Content-Type: application/json
-Authorization: Bearer sk_live_your_secret_key
-```
+There is no public payout API and LeeTec never calls B2C or B2B disbursement endpoints. A portal administrator may record a payout request against the wallet ledger for manual review. Creating that record does not transfer money and does not call a Daraja disbursement endpoint.
 
-Request:
+## Signed webhooks
 
-```json
-{
-  "phoneNumber": "254712345678",
-  "amount": 10,
-  "commandId": "BusinessPayment"
-}
-```
-
-`commandId` may be `BusinessPayment` or `SalaryPayment`. A payout is initially `PENDING`; the B2C result callback changes it to `SUCCESS` or `FAILED` and the result appears in `/api/v1/transactions`.
-
-## LeeTec webhook events
-
-Configure an HTTPS endpoint in the LeeTec workspace. LeeTec sends a JSON `POST` when a persisted status changes. Webhook requests include:
+Configure an HTTPS endpoint in **Workspace → Webhooks**. LeeTec sends signed JSON `POST` events after a collection or wallet status is persisted.
 
 ```http
 Content-Type: application/json
@@ -151,20 +154,18 @@ X-LeeTec-Delivery: <unique-delivery-id>
 X-LeeTec-Signature: sha256=<hex-hmac>
 ```
 
-The signature is HMAC-SHA256 of the exact raw request body using the endpoint secret. Verify the signature before parsing or processing the payload. Use `X-LeeTec-Delivery` or the payload `id` for idempotency. Return any HTTP `2xx` response quickly, then process asynchronously. LeeTec retries failed delivery attempts up to three times with short backoff and records the final delivery status.
+The signature is HMAC-SHA256 of the exact raw request body using the webhook secret. Verify it before parsing the payload. Deduplicate using `X-LeeTec-Delivery` or the payload `id`. Return any HTTP `2xx` response quickly, then process asynchronously. LeeTec retries failed deliveries up to three times and records the final delivery status.
 
-Supported events include:
+Supported collection events:
 
 | Event | Meaning |
 |---|---|
-| `payment.success` | STK collection confirmed and receipt validated |
-| `payment.failed` | STK collection failed, cancelled, timed out, or failed validation |
-| `wallet.deposit.success` | Wallet deposit confirmed and credited |
-| `wallet.deposit.failed` | Wallet deposit failed |
-| `payout.success` | B2C payout confirmed |
-| `payout.failed` | B2C payout failed or timed out |
+| `payment.success` | STK or C2B collection confirmed and stored |
+| `payment.failed` | STK collection failed or callback validation failed |
+| `wallet.deposit.success` | Supported only where the configured inbound STK wallet flow is enabled |
+| `wallet.deposit.failed` | Supported only where the configured inbound STK wallet flow is enabled |
 
-Example `payment.success` payload:
+Example:
 
 ```json
 {
@@ -173,49 +174,36 @@ Example `payment.success` payload:
   "createdAt": "2026-09-13T07:00:00.000Z",
   "data": {
     "transactionId": 123,
-    "checkoutRequestId": "ws_CO_...",
+    "checkoutRequestId": "C2B_MPESA123",
     "accountReference": "1ORDER001",
     "phoneNumber": "254712345678",
     "amount": 10,
     "status": "SUCCESS",
     "failureReason": null,
-    "mpesaReceipt": "ABC123",
-    "createdAt": "2026-09-13T07:00:00.000Z"
+    "mpesaReceipt": "ABC123"
   }
 }
 ```
-
-## Safaricom callback routes
-
-These routes are managed by LeeTec and are not customer webhook endpoints:
-
-| Method | Route | Purpose |
-|---|---|---|
-| `POST` | `/api/v1/callbacks/stk` | Receives STK Push result callbacks |
-| `POST` | `/api/v1/callbacks/c2b/confirmation` | Receives confirmed C2B transactions |
-| `POST` | `/api/v1/callbacks/c2b/validation` | Accepts C2B validation requests |
-| `POST` | `/api/v1/callbacks/b2c/result` | Receives B2C payout results |
-| `POST` | `/api/v1/callbacks/b2c/timeout` | Receives B2C timeout results |
-
-LeeTec acknowledges valid callbacks immediately and processes persistence and downstream webhook delivery asynchronously. This keeps Safaricom callback responses fast while preserving the final status in the database.
 
 ## Error handling
 
 | HTTP status | Meaning |
 |---|---|
 | `400` | Invalid request data or Daraja rejected the operation |
-| `401` | API key missing or callback token invalid |
-| `403` | API key invalid, revoked, or account suspended |
+| `401` | Missing API key or invalid STK callback token |
+| `403` | Invalid, revoked, or suspended API key |
+| `412` | Capability or configuration requirement is not satisfied |
 | `500` | Unexpected server or database failure |
-
-Always inspect the JSON `error` field and do not treat an HTTP `2xx` STK response as a completed payment.
 
 ## Production checklist
 
-1. Store the API key in a backend secret manager or environment variable.
-2. Use HTTPS for API calls and webhook endpoints.
-3. Verify the raw-body HMAC signature before accepting webhook data.
-4. Deduplicate webhook deliveries using `X-LeeTec-Delivery` or payload `id`.
-5. Poll `/api/v1/transactions` or consume webhooks until the final status is visible.
-6. Fulfill orders only after `SUCCESS`.
-7. Monitor failed webhook deliveries and keep the endpoint responsive.
+1. Use `https://leetec.online` as the base URL.
+2. Store the LeeTec API key only on your backend.
+3. Configure the HO shortcode as the Daraja authentication shortcode.
+4. Configure the child Till as the collection target (`PartyB`) for STK Push.
+5. Confirm that STK requests use `CustomerBuyGoodsOnline`.
+6. Register the C2B validation and confirmation URLs for the relevant Till.
+7. Verify webhook HMAC signatures against the raw request body.
+8. Deduplicate webhook deliveries.
+9. Use transaction history or webhooks to wait for final payment status.
+10. Keep disbursement processing manual; no B2C/B2B endpoint is used.

@@ -148,16 +148,6 @@ export async function dispatchUserWebhooks(userId: number, event: string, data: 
 export async function authenticateApiKey(keyHash: string) { const result = await execute({ sql: "SELECT a.*, u.* FROM apiKeys a JOIN users u ON u.id = a.userId WHERE a.keyHash = ? AND a.isActive = 1 LIMIT 1", args: [keyHash] }); const row = result ? asRows<TursoRow>(result)[0] : undefined; return row ? { keyId: Number(row.id), user: userFromRow(row) } : null; }
 export async function markApiKeyUsed(keyId: number) { return execute({ sql: "UPDATE apiKeys SET lastUsedAt = ? WHERE id = ?", args: [now(), keyId] }); }
 export function calculatePlatformFee(amount: number) { return amount <= 50 ? 1 : Math.round(amount * 0.015 * 100) / 100; }
-export async function updateB2cCallback(input: { conversationId: string; originatorConversationId: string; success: boolean; failureReason?: string | null; receipt?: string | null }) {
-  const db = await getTurso(); if (!db) return null;
-  const identifiers = [input.conversationId, input.originatorConversationId].filter(Boolean);
-  if (!identifiers.length) return null;
-  const row = asRows<TursoRow>(await db.execute({ sql: "SELECT id, userId, recipientPhone, amount, commandId, status, originatorConversationId, conversationId, createdAt FROM payouts WHERE conversationId = ? OR originatorConversationId = ? LIMIT 1", args: [identifiers[0], identifiers[1] ?? identifiers[0]] }))[0];
-  if (!row) return null;
-  const result = await db.execute({ sql: "UPDATE payouts SET status = ?, failureReason = ?, mpesaReceipt = ? WHERE id = ? AND status = 'PENDING'", args: [input.success ? "SUCCESS" : "FAILED", input.failureReason ?? null, input.receipt ?? null, Number(row.id)] });
-  if (Number(result.rowsAffected ?? 0) === 1) void dispatchUserWebhooks(Number(row.userId), `payout.${input.success ? "success" : "failed"}`, { payoutId: Number(row.id), conversationId: row.conversationId == null ? null : String(row.conversationId), originatorConversationId: row.originatorConversationId == null ? null : String(row.originatorConversationId), recipientPhone: String(row.recipientPhone), amount: Number(row.amount), commandId: String(row.commandId), status: input.success ? "SUCCESS" : "FAILED", failureReason: input.failureReason ?? null, mpesaReceipt: input.receipt ?? null, createdAt: String(row.createdAt) }).catch((error) => console.error("B2C webhook dispatch failed", error));
-  return result;
-}
 export async function updateStkCallback(input: { checkoutRequestId: string; success: boolean; failureReason?: string | null; receipt?: string | null; paidAmount?: number | null; paidPhoneNumber?: string | null }) {
   const db = await getTurso(); if (!db) return null;
   const deposit = asRows<TursoRow>(await db.execute({ sql: "SELECT id, userId, amount, phoneNumber, status FROM walletDeposits WHERE checkoutRequestId = ? LIMIT 1", args: [input.checkoutRequestId] }))[0];

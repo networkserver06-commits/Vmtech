@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { appRouter } from "./routers.js";
-import { authenticateApiKey, listTransactionHistory, markApiKeyUsed, recordC2bConfirmation, updateB2cCallback, updateStkCallback } from "./db.js";
+import { authenticateApiKey, listTransactionHistory, markApiKeyUsed, recordC2bConfirmation, updateStkCallback } from "./db.js";
 import { hashApiKey } from "./security.js";
 import { getStkCallbackToken } from "./security.js";
 
@@ -35,10 +35,6 @@ export function registerRestRoutes(app: Express) {
     try { const user = await authenticate(req, res); if (!user) return; const caller = appRouter.createCaller({ user, req: req as never, res: res as never }); const accountReference = typeof req.body.accountReference === "string" && req.body.accountReference.trim() ? req.body.accountReference.trim() : `1API${user.accountId ?? user.id}${Date.now().toString().slice(-8)}`; res.setHeader("Cache-Control", "no-store"); res.json(await caller.engine.stkPush({ phoneNumber: req.body.phoneNumber, amount: Number(req.body.amount), tillId: req.body.tillId ? Number(req.body.tillId) : undefined, accountReference, transactionDesc: req.body.transactionDesc })); }
     catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "STK Push failed" }); }
   });
-  app.post("/api/v1/payout", async (req, res) => {
-    try { const user = await authenticate(req, res); if (!user) return; const caller = appRouter.createCaller({ user, req: req as never, res: res as never }); res.json(await caller.engine.payout({ phoneNumber: req.body.phoneNumber, amount: Number(req.body.amount), commandId: req.body.commandId ?? "BusinessPayment" })); }
-    catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "Payout failed" }); }
-  });
   app.post("/api/v1/callbacks/stk", async (req, res) => {
     if (req.query.callbackToken !== getStkCallbackToken()) return res.status(401).json({ ResultCode: 1, ResultDesc: "Unauthorized callback" });
     const callback = req.body?.Body?.stkCallback;
@@ -57,8 +53,6 @@ export function registerRestRoutes(app: Express) {
       await updateStkCallback({ checkoutRequestId: String(callback.CheckoutRequestID), success, failureReason, receipt: typeof receipt === "string" || typeof receipt === "number" ? String(receipt) : null, paidAmount: Number.isFinite(paidAmount) ? paidAmount : null, paidPhoneNumber: paidPhoneNumber == null ? null : String(paidPhoneNumber) });
     })().catch((error) => console.error("STK callback processing failed", error));
   });
-  app.post("/api/v1/callbacks/b2c/result", async (req, res) => { res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" }); const body = req.body?.Result ?? req.body ?? {}; void updateB2cCallback({ conversationId: String(body.ConversationID ?? ""), originatorConversationId: String(body.OriginatorConversationID ?? ""), success: Number(body.ResultCode) === 0, failureReason: body.ResultDesc ? String(body.ResultDesc) : null, receipt: String((body.ResultParameters?.ResultParameter ?? []).find?.((item: { Key?: unknown }) => item.Key === "TransactionReceipt")?.Value ?? "") || null }).catch((error) => console.error("B2C result processing failed", error)); });
-  app.post("/api/v1/callbacks/b2c/timeout", async (req, res) => { res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" }); const body = req.body?.Result ?? req.body ?? {}; void updateB2cCallback({ conversationId: String(body.ConversationID ?? ""), originatorConversationId: String(body.OriginatorConversationID ?? ""), success: false, failureReason: "Safaricom B2C request timed out", receipt: null }).catch((error) => console.error("B2C timeout processing failed", error)); });
   app.post("/api/v1/callbacks/c2b/confirmation", async (req, res) => { const body = req.body ?? {}; res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" }); void recordC2bConfirmation({ tillNumber: String(body.BusinessShortCode ?? body.ShortCode ?? ""), transactionId: String(body.TransID ?? ""), amount: Number(body.TransAmount ?? 0), phoneNumber: String(body.MSISDN ?? ""), accountReference: String(body.BillRefNumber ?? body.InvoiceNumber ?? "") }).catch((error) => console.error("C2B confirmation processing failed", error)); });
   app.post("/api/v1/callbacks/c2b/validation", async (_req, res) => res.json({ ResultCode: 0, ResultDesc: "Accepted" }));
 }

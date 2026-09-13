@@ -1,7 +1,7 @@
 type DarajaConfig = { consumerKey: string; consumerSecret: string; passkey: string; shortcode: string; environment?: "SANDBOX" | "PRODUCTION"; initiatorName?: string; initiatorPassword?: string };
 type StoredMpesaConfig = { consumerKeyEncrypted: string; consumerSecretEncrypted: string; passkeyEncrypted: string; shortcode: string; environment?: string; b2cInitiatorName?: string | null; b2cInitiatorPasswordEncrypted?: string | null };
 
-import { decryptSecret, createSecurityCredential } from "./security.js";
+import { decryptSecret } from "./security.js";
 
 function getBaseUrl(config: DarajaConfig) {
   return config.environment === "PRODUCTION"
@@ -51,31 +51,20 @@ export function explainDarajaStkError(status: number, body: Record<string, unkno
   return `Daraja rejected the live STK request (HTTP ${status})${diagnostic ? `, ${diagnostic}` : ""}. Response: ${raw === "{}" ? "empty response" : raw}`;
 }
 
-export async function triggerStkPush(config: DarajaConfig, input: { phoneNumber: string; amount: number; accountReference: string; transactionDesc: string; callbackUrl: string; partyB?: string; transactionType?: "CustomerBuyGoodsOnline" | "CustomerPayBillOnline" }) {
+export async function triggerStkPush(config: DarajaConfig, input: { phoneNumber: string; amount: number; accountReference: string; transactionDesc: string; callbackUrl: string; partyB?: string; transactionType?: "CustomerBuyGoodsOnline" }) {
   const live = config.environment === "PRODUCTION" || (config.environment === undefined && process.env.MPESA_LIVE_ENABLED === "true");
   if (live && (!config.consumerKey || !config.consumerSecret || !config.passkey || config.consumerKey === "sandbox" || config.consumerSecret === "sandbox" || config.passkey === "sandbox")) throw new Error("Live Daraja credentials are missing or invalid");
   if (!live) return { sandbox: true, CheckoutRequestID: `ws_CO_${Date.now()}`, MerchantRequestID: "sandbox-merchant", ResponseDescription: "Sandbox mode — request accepted" };
   const token = await getDarajaToken(config);
   const timestamp = darajaTimestamp();
   const password = Buffer.from(`${config.shortcode}${config.passkey}${timestamp}`).toString("base64");
-  const response = await fetch(`${getBaseUrl(config)}/mpesa/stkpush/v1/processrequest`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ BusinessShortCode: config.shortcode, Password: password, Timestamp: timestamp, TransactionType: input.transactionType ?? "CustomerBuyGoodsOnline", Amount: Math.round(input.amount), PartyA: input.phoneNumber, PartyB: input.partyB ?? config.shortcode, PhoneNumber: input.phoneNumber, CallBackURL: input.callbackUrl, AccountReference: input.accountReference, TransactionDesc: input.transactionDesc }) });
+  const response = await fetch(`${getBaseUrl(config)}/mpesa/stkpush/v1/processrequest`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ BusinessShortCode: config.shortcode, Password: password, Timestamp: timestamp, TransactionType: "CustomerBuyGoodsOnline", Amount: Math.round(input.amount), PartyA: input.phoneNumber, PartyB: input.partyB ?? config.shortcode, PhoneNumber: input.phoneNumber, CallBackURL: input.callbackUrl, AccountReference: input.accountReference, TransactionDesc: input.transactionDesc }) });
   const rawBody = await response.text();
   let body: Record<string, unknown> = {};
   try { body = JSON.parse(rawBody) as Record<string, unknown>; } catch { body = { raw: rawBody }; }
   if (!response.ok || body.ResponseCode !== "0") {
     throw new Error(`Daraja STK Push failed: ${explainDarajaStkError(response.status, body)}`);
   }
-  return body;
-}
-
-export async function triggerB2cPayout(config: DarajaConfig, input: { phoneNumber: string; amount: number; commandId: "BusinessPayment" | "SalaryPayment"; queueTimeoutUrl: string; resultUrl: string }) {
-  if (process.env.MPESA_LIVE_ENABLED !== "true") return { sandbox: true, OriginatorConversationID: `sandbox-${Date.now()}`, ConversationID: `sandbox-${Date.now()}`, ResponseDescription: "Sandbox mode — payout queued" };
-  if (!config.initiatorName || !config.initiatorPassword) throw new Error("B2C initiator credentials are required");
-  const token = await getDarajaToken(config);
-  const securityCredential = createSecurityCredential(config.initiatorPassword);
-  const response = await fetch(`${getBaseUrl(config)}/mpesa/b2c/v1/paymentrequest`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ InitiatorName: config.initiatorName, SecurityCredential: securityCredential, CommandID: input.commandId, Amount: Math.round(input.amount), PartyA: config.shortcode, PartyB: input.phoneNumber, Remarks: "LeeTec Engine payout", QueueTimeOutURL: input.queueTimeoutUrl, ResultURL: input.resultUrl, Occasion: "" }) });
-  const body = await response.json();
-  if (!response.ok || body.ResponseCode !== "0") throw new Error(body.errorMessage || body.ResponseDescription || "Daraja B2C request failed");
   return body;
 }
 
