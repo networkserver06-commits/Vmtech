@@ -64,8 +64,16 @@ const navGroups = [
 ];
 
 function money(value: number) { return `KES ${value.toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
+function parseServerDate(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return new Date(NaN);
+  // SQLite/Turso returns UTC timestamps without an offset; make that explicit
+  // so browsers in EAT or any other timezone do not shift them by local hours.
+  const utcValue = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(raw) ? `${raw.replace(" ", "T")}Z` : raw;
+  return new Date(utcValue);
+}
 function relativeTime(value: unknown) {
-  const date = new Date(String(value));
+  const date = parseServerDate(value);
   if (Number.isNaN(date.getTime())) return "—";
   const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
   if (seconds < 60) return "Just now";
