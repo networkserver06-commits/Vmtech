@@ -100,8 +100,7 @@ export const appRouter = router({
       const stored = await getStoredConfig(ctx.user.id);
       const liveEnabled = process.env.MPESA_LIVE_ENABLED === "true" || process.env.MPESA_ENVIRONMENT === "PRODUCTION";
       const environmentConfig = { consumerKey: process.env.MPESA_CONSUMER_KEY ?? "sandbox", consumerSecret: process.env.MPESA_CONSUMER_SECRET ?? "sandbox", passkey: process.env.MPESA_PASSKEY ?? "sandbox", shortcode: process.env.MPESA_SHORTCODE ?? "4208798", environment: process.env.MPESA_ENVIRONMENT === "SANDBOX" ? "SANDBOX" as const : "PRODUCTION" as const };
-      const diagnosticId = `DEP-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-      if (liveEnabled && (!process.env.MPESA_CONSUMER_KEY || !process.env.MPESA_CONSUMER_SECRET || !process.env.MPESA_PASSKEY || !process.env.MPESA_SHORTCODE || !process.env.MPESA_PARTY_B)) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Wallet deposits are not configured for live Buy Goods STK. Add MPESA_PARTY_B (actual Buy Goods Till number, not Store number). Diagnostic ID: ${diagnosticId}` });
+      if (liveEnabled && (!process.env.MPESA_CONSUMER_KEY || !process.env.MPESA_CONSUMER_SECRET || !process.env.MPESA_PASSKEY || !process.env.MPESA_SHORTCODE || !process.env.MPESA_PARTY_B)) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Wallet deposits are not configured for live Buy Goods STK. Add MPESA_PARTY_B (actual Buy Goods Till number, not Store number)." });
       const config = liveEnabled ? environmentConfig : stored ? encryptedConfigToDaraja(stored) : environmentConfig;
       const accountReference = `1WALLET${Date.now().toString().slice(-10)}`;
       try {
@@ -113,9 +112,9 @@ export const appRouter = router({
         return { ...result, accountReference, status: "PENDING" };
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
-        console.error(JSON.stringify({ event: "wallet_stk_deposit_failed", diagnosticId, userId: ctx.user.id, amount: input.amount, phoneSuffix: input.phoneNumber.slice(-4), shortcode: config.shortcode, environment: config.environment, detail }));
-        if (error instanceof TRPCError) throw new TRPCError({ code: error.code, message: `${error.message} Diagnostic ID: ${diagnosticId}` });
-        throw new TRPCError({ code: "BAD_GATEWAY", message: `Wallet top-up failed: ${detail || "The production API returned no usable error details."} Diagnostic ID: ${diagnosticId}` });
+        console.error(JSON.stringify({ event: "wallet_stk_deposit_failed", userId: ctx.user.id, amount: input.amount, phoneSuffix: input.phoneNumber.slice(-4), shortcode: config.shortcode, environment: config.environment, detail }));
+        if (error instanceof TRPCError) throw error;
+        throw new TRPCError({ code: "BAD_GATEWAY", message: detail || "Wallet top-up failed." });
       }
     }),
     payout: protectedProcedure.input(z.object({ phoneNumber: phoneSchema, amount: amountSchema, commandId: z.enum(["BusinessPayment", "SalaryPayment"]).default("BusinessPayment") })).mutation(async ({ ctx, input }) => {
