@@ -29,6 +29,26 @@ x-api-key: sk_live_your_secret_key
 
 A missing key returns `401`. An invalid, revoked, or suspended key returns `403`.
 
+## Copyable environment configuration
+
+Use these variables on your backend server. Replace the API-key placeholder with the secret copied once from **Workspace → API keys**.
+
+```env
+LEETEC_BASE_URL=https://leetec.online
+LEETEC_API_KEY=sk_live_your_secret_key
+```
+
+Copyable test request:
+
+```bash
+curl -i -X POST "$LEETEC_BASE_URL/api/v1/stkpush" \
+  -H "Authorization: Bearer $LEETEC_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"phoneNumber":"254712345678","amount":10,"accountReference":"1TEST001","transactionDesc":"LeeTec API test","tillId":123}'
+```
+
+A successful test returns a `CheckoutRequestID` and a pending request. Confirm the final result through `GET $LEETEC_BASE_URL/api/v1/transactions` or a signed webhook; do not treat request acceptance as completed payment.
+
 ## STK Push — Lipa Na M-Pesa Online
 
 ```http
