@@ -558,3 +558,20 @@ h1 { font-size: 27px; line-height: 1.1; letter-spacing: -1px; font-weight: 700; 
 .landing-footer { border-top: 0; }
 @media (max-width: 850px) { .landing-api-band { grid-template-columns: 1fr; gap: 28px; padding: 65px 0 72px; } }
 @media (max-width: 560px) { .landing-docs { display: none; } .landing-api-band { width: min(100% - 30px, 1180px); } .landing-api-band h2 { letter-spacing: -1.3px; } }
+
+/* Mobile drawer correction: keep the closed drawer fully off-canvas and make the open state readable */
+@media (max-width: 820px) {
+  .sidebar { left: calc(-1 * min(306px, 86vw) - 4px); top: 0; bottom: 0; z-index: 40; width: min(306px, 86vw); overflow-y: auto; overscroll-behavior: contain; }
+  .sidebar.open { left: 0; }
+  .mobile-scrim { z-index: 35; background: rgba(3, 8, 12, .68); backdrop-filter: blur(4px); }
+  .topbar { position: sticky; top: 0; z-index: 20; }
+  .mobile-menu { position: relative; z-index: 21; width: 34px; height: 34px; margin-right: 8px; border: 1px solid rgba(189,211,224,.14); border-radius: 8px; background: rgba(255,255,255,.035); }
+  .mobile-close { width: 32px; height: 32px; border: 1px solid rgba(189,211,224,.12); border-radius: 8px; background: rgba(255,255,255,.035); }
+  .content-wrap { position: relative; z-index: 1; }
+}
+@media (max-width: 560px) {
+  .topbar { padding-left: 14px; padding-right: 14px; }
+  .breadcrumbs { min-width: 0; overflow: hidden; white-space: nowrap; }
+  .breadcrumbs strong { overflow: hidden; text-overflow: ellipsis; }
+  .breadcrumb-home { flex-shrink: 0; }
+}
