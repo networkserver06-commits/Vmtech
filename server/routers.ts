@@ -65,8 +65,8 @@ export const appRouter = router({
     deletePayout: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deletePayout(ctx.user.id, input.id)),
     createApiKey: protectedProcedure.input(z.object({ name: z.string().min(2).max(100) })).mutation(async ({ ctx, input }) => {
       const rawKey = generateApiKey();
-      await insertApiKey({ userId: ctx.user.id, name: input.name, keyHash: hashApiKey(rawKey) });
-      return { key: rawKey, keyPrefix: "sk_live_", revealedOnce: true };
+      await insertApiKey({ userId: ctx.user.id, name: input.name, keyHash: hashApiKey(rawKey), keyEncrypted: encryptSecret(rawKey) });
+      return { key: rawKey, keyPrefix: "sk_live_", revealedOnce: true, recoverable: true };
     }),
     listApiKeys: protectedProcedure.query(({ ctx }) => listApiKeys(ctx.user.id)),
     revokeApiKey: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => revokeApiKey(ctx.user.id, input.id)),

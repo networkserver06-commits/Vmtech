@@ -15,7 +15,7 @@ export type User = {
 };
 
 export type InsertUser = Partial<Omit<User, "id" | "createdAt" | "updatedAt">> & Pick<User, "openId">;
-export type ApiKey = { id: number; userId: number; name: string; keyPrefix: string; keyHash: string; isActive: boolean; lastUsedAt: Date | null; createdAt: Date };
+export type ApiKey = { id: number; userId: number; name: string; keyPrefix: string; keyHash: string; keyEncrypted?: string | null; isActive: boolean; lastUsedAt: Date | null; createdAt: Date };
 export type Till = { id: number; userId: number; tillNumber: string; name: string; location: string | null; isActive: boolean; createdAt: Date };
 export type Transaction = { id: number; userId: number; tillId: number | null; checkoutRequestId: string; merchantRequestId: string | null; mpesaReceipt: string | null; accountReference: string; phoneNumber: string; amount: string; platformFee: string; netAmount: string | null; feeChargedAt: Date | null; status: string; failureReason: string | null; createdAt: Date };
 export type WalletTransaction = { id: number; walletId: number; amount: string; type: string; reference: string; description: string; createdAt: Date };
