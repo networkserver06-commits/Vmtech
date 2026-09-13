@@ -609,3 +609,10 @@ h1 { font-size: 27px; line-height: 1.1; letter-spacing: -1px; font-weight: 700; 
 .key-history-actions .secret-toggle { display: inline-flex; }
 .key-delete-button { min-height: 28px; padding: 0 8px; font-size: 10px; }
 @media (max-width: 760px) { .key-history-row { align-items: flex-start; flex-direction: column; } .key-history-actions { width: 100%; } .key-history-actions .till-status { margin-left: auto; } }
+
+/* Clear, responsive payment-link checkout fields */
+.collection-form-grid > label { display: grid; gap: 7px; min-width: 0; }
+.collection-form-grid > label input, .collection-form-grid > label select { width: 100%; min-height: 48px; box-sizing: border-box; }
+.collection-form-grid > label.field-error input { border-color: #ee7777; box-shadow: 0 0 0 3px rgba(238,119,119,.10); }
+.input-error { color: #ff9b9b; font-size: 11px; line-height: 1.35; }
+@media (max-width: 620px) { .collection-modal { width: min(100% - 24px, 520px); padding: 18px; } .collection-form-grid { grid-template-columns: 1fr; } .collection-form-grid .span-two { grid-column: auto; } .collection-modal .modal-actions { flex-direction: column-reverse; } .collection-modal .modal-actions button { width: 100%; justify-content: center; } }
