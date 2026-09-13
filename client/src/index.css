@@ -452,12 +452,17 @@ h1 { font-size: 27px; line-height: 1.1; letter-spacing: -1px; font-weight: 700; 
 .dashboard-tabs:not([data-active-tab="Webhooks"]) .tab-webhooks { display: none; }
 .dashboard-tabs:not([data-active-tab="Payment links"]) .tab-payment-links { display: none; }
 .payment-links-panel { min-height: 280px; }
-.payment-link-form { align-items: end; }
+.payment-link-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin: 16px 0 12px; }
+.payment-link-modes button { display: grid; gap: 5px; padding: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 9px; background: rgba(255,255,255,.018); text-align: left; cursor: pointer; }
+.payment-link-modes button:hover, .payment-link-modes button.active { color: var(--text); border-color: rgba(197,245,110,.5); background: rgba(197,245,110,.07); }
+.payment-link-modes strong { font-size: 11px; }.payment-link-modes span { font-size: 9px; line-height: 1.4; }
+.payment-link-form { align-items: end; }.payment-link-form label { display: grid; gap: 6px; min-width: 0; }.payment-link-form label > span { color: var(--muted); font-size: 9px; font-weight: 600; }
 .generated-link-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 18px; padding: 14px 16px; border: 1px solid var(--line-strong); border-radius: 10px; background: rgba(255,255,255,.025); }
-.generated-link-card > div { min-width: 0; display: grid; gap: 5px; }
+.generated-link-card > div { min-width: 0; display: grid; gap: 5px; }.generated-link-card small { color: var(--lime); font-size: 9px; }.generated-link-actions { display: flex !important; align-items: center; gap: 8px; flex-shrink: 0; }
 .generated-link-card strong { color: var(--text); font-size: 12px; }
 .generated-link-card span { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
-@media (max-width: 720px) { .payment-link-form, .generated-link-card { align-items: stretch; flex-direction: column; } }
+@media (max-width: 720px) { .payment-link-form { grid-template-columns: 1fr; }.payment-link-form button { width: 100%; }.generated-link-card { align-items: stretch; flex-direction: column; }.generated-link-actions { width: 100%; }.generated-link-actions .secondary-button { flex: 1; } }
+@media (max-width: 480px) { .payment-link-modes { grid-template-columns: 1fr; }.generated-link-actions { align-items: stretch; }.generated-link-actions .icon-button { flex: 0 0 40px; } }
 
 .toast-error { border-color: rgba(236,119,132,.45); color: #ffd5da; background: rgba(87,25,34,.96); }
 .toast-success { border-color: rgba(89,217,154,.35); }
