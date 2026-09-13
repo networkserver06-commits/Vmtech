@@ -153,7 +153,9 @@ export default function Home() {
   const [paymentLinkAmount, setPaymentLinkAmount] = useState("");
   const [paymentLinkReference, setPaymentLinkReference] = useState("");
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
-  const { user, loading } = useAuth();
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileName, setProfileName] = useState("");
+  const { user, loading, refresh, logout } = useAuth();
   const overview = trpc.engine.overview.useQuery(undefined, { enabled: Boolean(user), refetchInterval: 5000, refetchOnWindowFocus: true });
   const apiKeys = trpc.engine.listApiKeys.useQuery(undefined, { enabled: Boolean(user), refetchOnWindowFocus: true });
   const tills = trpc.engine.listTills.useQuery(undefined, { enabled: Boolean(user), refetchOnWindowFocus: true });
@@ -168,6 +170,7 @@ export default function Home() {
   const createWebhook = trpc.engine.createWebhook.useMutation({ onSuccess: () => { webhooks.refetch(); setWebhookUrl(""); setWebhookSecret(""); setShowWebhookSecret(false); notify("Webhook endpoint added"); }, onError: (error) => notify(mutationError(error), "error") });
   const deleteWebhook = trpc.engine.deleteWebhook.useMutation({ onSuccess: () => { webhooks.refetch(); notify("Webhook endpoint removed"); }, onError: (error) => notify(mutationError(error), "error") });
   const depositWallet = trpc.engine.depositWallet.useMutation({ onSuccess: () => { overview.refetch(); walletDeposits.refetch(); tillTransactions.refetch(); setDepositError(null); setDepositNotice("STK request accepted. Check the M-PESA phone now and enter your PIN. Your wallet updates only after Safaricom confirms payment."); notify("STK prompt request accepted"); }, onError: (error) => { const message = depositMutationError(error); setDepositNotice(null); setDepositError(message); notify("Deposit request failed — see the Wallet status panel"); } });
+  const updateProfile = trpc.auth.updateProfile.useMutation({ onSuccess: async () => { await refresh(); setProfileOpen(false); notify("Profile updated"); }, onError: (error) => notify(mutationError(error), "error") });
   useEffect(() => {
     const result = depositWallet.data as { CheckoutRequestID?: unknown; checkoutRequestId?: unknown } | undefined;
     const checkoutId = result?.CheckoutRequestID ?? result?.checkoutRequestId;
@@ -208,6 +211,7 @@ export default function Home() {
     setMobileOpen(false);
     if (label === "Collections") navigate("/collections?from=dashboard");
     if (label === "Documentation") navigate("/docs");
+    if (label === "Payment links") setPaymentLink(null);
     notify(`${label} opened`);
   };
   const submitWebhook = () => {
@@ -233,13 +237,14 @@ export default function Home() {
     depositWallet.mutate({ phoneNumber: normalizedDepositPhone, amount });
   };
   const generatePaymentLink = () => {
-    const amount = Number(paymentLinkAmount);
+    const amountText = paymentLinkAmount.trim();
+    const amount = Number(amountText);
     const reference = paymentLinkReference.trim() || `1LINK${Date.now().toString().slice(-8)}`;
-    if (!Number.isFinite(amount) || amount <= 0 || amount > 1500000) return notify("Enter an amount between KES 1 and KES 1,500,000", "error");
+    if (amountText && (!Number.isFinite(amount) || amount <= 0 || amount > 1500000)) return notify("Enter an amount between KES 1 and KES 1,500,000", "error");
     if (!/^1[A-Za-z0-9_-]{1,63}$/.test(reference)) return notify("Reference must start with 1 and contain only letters, numbers, _ or -", "error");
     const url = new URL("/collections", window.location.origin);
     url.searchParams.set("from", "payment-link");
-    url.searchParams.set("amount", amount.toFixed(2));
+    if (amountText) url.searchParams.set("amount", amount.toFixed(2));
     url.searchParams.set("reference", reference);
     setPaymentLink(url.toString());
     setPaymentLinkReference(reference);
@@ -268,12 +273,12 @@ export default function Home() {
         </div>
 
         <div className="sidebar-quick-actions">
-          <div className="profile-row sidebar-profile">
+          <button className="profile-row sidebar-profile" onClick={() => { setProfileName(user.name ?? ""); setProfileOpen(true); }}>
             <div className="profile-avatar">{user.name?.slice(0, 2).toUpperCase() ?? "ME"}</div>
             <div className="profile-copy"><strong>{user.name ?? "Developer"}</strong><span>{user.email ?? "Signed-in account"}</span></div>
             <MoreHorizontal size={17} className="muted-icon" />
-          </div>
-          <button className="nav-item sidebar-settings"><Settings2 size={17} /><span>Settings</span></button>
+          </button>
+          <button className="nav-item sidebar-settings" onClick={() => { setProfileName(user.name ?? ""); setProfileOpen(true); }}><Settings2 size={17} /><span>Settings</span></button>
         </div>
 
         <nav className="nav-area" aria-label="Main navigation">
@@ -343,7 +348,7 @@ export default function Home() {
           </section>
 
           <section className="panel webhook-panel tab-webhooks"><div className="panel-heading"><div><h3>Webhook endpoints</h3><p>Send your payment events to a server you control.</p></div><Webhook size={18} className="gold-icon" /></div><div className="key-access-note"><ShieldCheck size={15} /><div><strong>Protect your webhook secret</strong><span>LeeTec stores the secret encrypted. Use it to verify signatures in your application. It is never shown again after submission.</span></div></div><div className="webhook-list">{(webhooks.data ?? []).length ? (webhooks.data ?? []).map((hook) => <div className="webhook-row" key={String(hook.id)}><div className="till-details"><strong>{String(hook.url)}</strong><span><span className="live-dot" /> Active · Created {relativeTime(hook.createdAt)}</span></div><button className="danger-button" onClick={() => { if (window.confirm("Remove this webhook endpoint?")) deleteWebhook.mutate({ id: Number(hook.id) }); }}>Remove</button></div>) : <div className="till-empty">No webhook endpoints configured yet.</div>}</div><div className="webhook-create-row"><Input value={webhookUrl} onChange={(event) => setWebhookUrl(event.target.value)} placeholder="https://your-domain.com/webhooks/leetec" aria-label="Webhook URL" type="url" /><div className="secret-input-wrap"><Input value={webhookSecret} onChange={(event) => setWebhookSecret(event.target.value)} placeholder="Signing secret (16+ characters)" aria-label="Webhook signing secret" type={showWebhookSecret ? "text" : "password"} /><button type="button" className="secret-toggle" aria-label={showWebhookSecret ? "Hide webhook secret" : "Show webhook secret"} onClick={() => setShowWebhookSecret((value) => !value)}>{showWebhookSecret ? <EyeOff size={15} /> : <Eye size={15} />}</button></div><button className="secondary-button" disabled={createWebhook.isPending} onClick={submitWebhook}><Plus size={16} /> Add webhook</button></div><div className="fee-note"><ShieldCheck size={15} /><span>Use HTTPS in production. Your endpoint should return a 2xx response quickly and process events asynchronously.</span></div></section>
-          <section className="panel payment-links-panel tab-payment-links"><div className="panel-heading"><div><div className="panel-kicker">SHAREABLE COLLECTIONS <span className="eyebrow-line" /></div><h3>Generate a payment link</h3><p>Create a pre-filled collection page that opens the secure STK Push form.</p></div><Link2 size={18} className="gold-icon" /></div><div className="key-access-note"><ShieldCheck size={15} /><div><strong>Payments stay inside your dashboard</strong><span>The link pre-fills the amount and reference. A signed-in workspace user still confirms the Kenyan M-PESA number before sending the STK prompt.</span></div></div><div className="webhook-create-row payment-link-form"><Input value={paymentLinkAmount} onChange={(event) => setPaymentLinkAmount(event.target.value.replace(/[^\d.]/g, ""))} placeholder="Amount in KES" aria-label="Payment link amount" inputMode="decimal" /><Input value={paymentLinkReference} onChange={(event) => setPaymentLinkReference(event.target.value.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64))} placeholder="Reference e.g. 1ORDER1001" aria-label="Payment link reference" /><button className="primary-button" onClick={generatePaymentLink}><Link2 size={16} /> Generate link</button></div>{paymentLink && <div className="generated-link-card"><div><strong>Ready to share</strong><span>{paymentLink}</span></div><CopyButton value={paymentLink} /><button className="secondary-button" onClick={() => window.open(paymentLink, "_blank", "noopener,noreferrer")}><ExternalLink size={15} /> Open form</button></div>}</section>
+          <section className="panel payment-links-panel tab-payment-links"><div className="panel-heading"><div><div className="panel-kicker">SHAREABLE COLLECTIONS <span className="eyebrow-line" /></div><h3>Generate a payment link</h3><p>Create a secure collection page with a fixed amount or let the payer enter the amount.</p></div><Link2 size={18} className="gold-icon" /></div><div className="key-access-note"><ShieldCheck size={15} /><div><strong>Flexible payment requests</strong><span>Amount is optional. Leave it blank for a payer-entered amount; a signed-in workspace user still confirms the Kenyan M-PESA number before sending the STK prompt.</span></div></div><div className="webhook-create-row payment-link-form"><Input value={paymentLinkAmount} onChange={(event) => setPaymentLinkAmount(event.target.value.replace(/[^\d.]/g, ""))} placeholder="Amount in KES (optional)" aria-label="Optional payment link amount" inputMode="decimal" /><Input value={paymentLinkReference} onChange={(event) => setPaymentLinkReference(event.target.value.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64))} placeholder="Reference e.g. 1ORDER1001" aria-label="Payment link reference" /><button className="primary-button" onClick={generatePaymentLink}><Link2 size={16} /> Generate link</button></div>{paymentLink && <div className="generated-link-card"><div><strong>Ready to share</strong><span>{paymentLink}</span></div><CopyButton value={paymentLink} /><button className="secondary-button" onClick={() => window.open(paymentLink, "_blank", "noopener,noreferrer")}><ExternalLink size={15} /> Open form</button></div>}</section>
 
           <section className="dashboard-grid tab-overview">
             <div className="panel volume-panel"><div className="panel-heading"><div><h3>Transaction volume</h3><p>Gross collection value processed across your tills</p></div><div className="period-select">All recorded data <ChevronDown size={14} /></div></div><div className="chart-summary"><div><strong>{money(live.collections)}</strong><span>Direct Till collections</span></div><div className="legend"><span><i className="legend-dot collections" /> Collections</span></div></div><div className="bar-chart" aria-label="Transaction volume chart">{chartBars.map((height, index) => <div className="bar-column" key={index}><div className="bar collections" style={{ height: `${height}%` }} /></div>)}</div><div className="chart-axis"><span>Older</span><span>Recent</span></div></div>
@@ -364,6 +369,7 @@ export default function Home() {
 
           <SiteFooter />
           <footer className="footer-note"><span><span className="footer-dot" /> All systems operational</span><span>LeeTec Engine v1.0 <span className="footer-sep">•</span> <button onClick={() => notify("Status page is opening soon")}>Status</button></span></footer>
+        {profileOpen && <div className="crud-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setProfileOpen(false); }}><div className="crud-modal profile-modal" role="dialog" aria-modal="true" aria-labelledby="profile-title"><div className="modal-heading"><div><span className="modal-kicker">WORKSPACE SETTINGS</span><h2 id="profile-title">Profile & account</h2><p>Keep your workspace identity and session controls up to date.</p></div><button aria-label="Close profile settings" onClick={() => setProfileOpen(false)}><X size={18} /></button></div><div className="profile-summary"><div className="profile-avatar large">{user.name?.slice(0, 2).toUpperCase() ?? "ME"}</div><div><strong>{user.name ?? "Developer"}</strong><span>{user.email ?? "No email"}</span><small>Account #{user.accountId ?? "—"} · {user.role === "admin" ? "Administrator" : "Developer"}</small></div></div><div className="form-grid profile-form"><label>Display name<Input value={profileName} onChange={(event) => setProfileName(event.target.value)} placeholder="Your full name" autoComplete="name" /></label><label>Email address<Input value={user.email ?? ""} readOnly disabled /></label></div><div className="modal-note"><ShieldCheck size={16} /><span>Your email and role are managed securely by the account system. Only your display name can be changed here.</span></div><div className="modal-actions"><button className="danger-button" onClick={async () => { await logout(); navigate("/"); }}>Sign out</button><span className="modal-actions-spacer" /><button className="secondary-button" onClick={() => setProfileOpen(false)}>Cancel</button><button className="primary-button" disabled={updateProfile.isPending || profileName.trim().length < 2} onClick={() => updateProfile.mutate({ name: profileName.trim() })}>{updateProfile.isPending ? "Saving…" : "Save profile"}</button></div></div></div>}
         {keyConfirmation && <div className="crud-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setKeyConfirmation(null); setRevokeKeyId(null); } }}><div className="crud-modal key-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="key-confirm-title"><div className="modal-heading"><div><span className="modal-kicker">SECURITY CONFIRMATION</span><h2 id="key-confirm-title">{keyConfirmation === "create" ? "Create secret API key?" : "Revoke this API key?"}</h2><p>{keyConfirmation === "create" ? "A new live secret will be generated and shown once." : "Any integration using this key will immediately lose API access."}</p></div><button aria-label="Close confirmation" onClick={() => { setKeyConfirmation(null); setRevokeKeyId(null); }}><X size={18} /></button></div><div className="modal-note"><ShieldCheck size={16} /><span>{keyConfirmation === "create" ? "Store the sk_live_ secret securely. It cannot be retrieved after you leave this screen." : "Revocation is immediate and cannot be undone. Create a replacement key before revoking if your integration is still active."}</span></div><div className="modal-actions"><button className="secondary-button" onClick={() => { setKeyConfirmation(null); setRevokeKeyId(null); }}>Cancel</button><button className={keyConfirmation === "revoke" ? "danger-button" : "primary-button"} disabled={createApiKey.isPending || revokeApiKey.isPending} onClick={() => { if (keyConfirmation === "create") createApiKey.mutate({ name: keyName.trim() }); else if (revokeKeyId !== null) revokeApiKey.mutate({ id: revokeKeyId }); setKeyConfirmation(null); setRevokeKeyId(null); }}>{keyConfirmation === "create" ? "Create secret key" : "Revoke key"}</button></div></div></div>}
         </div>
       </main>

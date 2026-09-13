@@ -41,6 +41,10 @@ export async function getUserById(id: number) {
   return row ? userFromRow(row) : undefined;
 }
 
+export async function updateUserProfile(userId: number, name: string) {
+  return execute({ sql: "UPDATE users SET name = ?, updatedAt = ? WHERE id = ?", args: [name.trim(), now(), userId] });
+}
+
 export async function getOverviewData(userId: number) {
   const db = await getTurso();
   if (!db) return { balance: 0, collections: 0, payouts: 0, successRate: 100, activeKeys: 0, accountId: "1", transactions: [] };

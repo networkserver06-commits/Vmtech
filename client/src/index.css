@@ -213,6 +213,16 @@ h1 { font-size: 27px; line-height: 1.1; letter-spacing: -1px; font-weight: 700; 
 .table-head, .table-row { min-width: 660px; }
 .footer-note { border-top: 1px solid rgba(189,211,224,.06); margin-top: 4px; }
 .mobile-bottom-nav { display: none; }
+.sidebar-profile { width: 100%; border-left: 0; border-right: 0; border-bottom: 0; color: inherit; background: transparent; text-align: left; cursor: pointer; }
+.profile-summary { display: flex; align-items: center; gap: 12px; margin-top: 22px; padding: 14px; border: 1px solid var(--line); border-radius: 9px; background: rgba(255,255,255,.025); }
+.profile-summary > div:last-child { display: grid; gap: 4px; min-width: 0; }
+.profile-summary strong { color: var(--text); font-size: 13px; }
+.profile-summary span, .profile-summary small { color: var(--muted); font-size: 10px; overflow-wrap: anywhere; }
+.profile-avatar.large { width: 42px; height: 42px; font-size: 12px; }
+.profile-form { margin-top: 18px; }
+.modal-actions-spacer { flex: 1; }
+.login-home-link { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; border: 0; background: transparent; color: #82939b; font-size: 10px; }
+.login-home-link:hover { color: var(--lime); }
 
 @media (max-width: 820px) {
   .sidebar { background: rgba(10,17,23,.98); backdrop-filter: blur(22px); }

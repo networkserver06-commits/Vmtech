@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, CheckCircle2, Eye, EyeOff, LockKeyhole, MailCheck, ShieldCheck, UserRound, XCircle, Zap } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Eye, EyeOff, LockKeyhole, MailCheck, ShieldCheck, UserRound, XCircle, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -18,7 +18,11 @@ export default function Login() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!loading && user) navigate(user.role?.toUpperCase() === "ADMIN" ? "/admin" : "/dashboard");
+    if (!loading && user) {
+      const requested = new URLSearchParams(window.location.search).get("returnTo");
+      const destination = requested && requested.startsWith("/") && !requested.startsWith("//") ? requested : user.role?.toUpperCase() === "ADMIN" ? "/admin" : "/dashboard";
+      navigate(destination);
+    }
   }, [loading, user, navigate]);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -47,7 +51,10 @@ export default function Login() {
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || "Unable to continue. Please try again.");
       if (mode === "register") { setNotice("Account created. You can sign in now. Email verification is optional."); setMode("login"); setForm({ name: "", email: form.email, password: "", confirmPassword: "" }); }
-      else window.location.assign("/dashboard");
+      else {
+        const requested = new URLSearchParams(window.location.search).get("returnTo");
+        navigate(requested && requested.startsWith("/") && !requested.startsWith("//") ? requested : "/dashboard");
+      }
     } catch (err) { setError(err instanceof Error ? err.message : "Unable to connect to LeeTec Engine."); }
     finally { setBusy(false); }
   };
