@@ -461,3 +461,20 @@ h1 { font-size: 27px; line-height: 1.1; letter-spacing: -1px; font-weight: 700; 
 
 .toast-error { border-color: rgba(236,119,132,.45); color: #ffd5da; background: rgba(87,25,34,.96); }
 .toast-success { border-color: rgba(89,217,154,.35); }
+.crud-overlay { overflow-y: auto; }
+.collection-modal { width: min(620px, 100%); padding: 22px; }
+.collection-modal .form-grid { gap: 12px; margin-top: 20px; }
+.collection-modal .modal-note { margin-top: 14px; }
+.compact-note { align-items: center; color: #91a59a; }
+@media (max-width: 560px) {
+  .crud-overlay { align-items: start; padding: 12px; }
+  .collection-modal { width: 100%; max-height: calc(100dvh - 24px); overflow-y: auto; padding: 18px; border-radius: 11px; }
+  .collection-modal .modal-heading { gap: 10px; }
+  .collection-modal .modal-heading h2 { font-size: 17px; }
+  .collection-modal .modal-heading p { max-width: 270px; line-height: 1.45; }
+  .collection-modal .form-grid { grid-template-columns: 1fr; gap: 11px; margin-top: 17px; }
+  .collection-modal .span-two { grid-column: auto; }
+  .collection-modal .modal-actions { display: grid; grid-template-columns: 1fr 1.35fr; gap: 8px; margin-top: 18px; }
+  .collection-modal .modal-actions button { width: 100%; min-height: 42px; }
+  .collection-modal .compact-note { align-items: flex-start; line-height: 1.45; }
+}
