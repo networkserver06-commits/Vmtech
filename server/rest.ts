@@ -28,7 +28,7 @@ export function explainStkResult(resultCode: unknown, resultDescription: unknown
 
 export function registerRestRoutes(app: Express) {
   const sendTransactionHistory = async (req: Request, res: Response) => {
-    try { const user = await authenticate(req, res); if (!user) return; const data = await listTransactionHistory(user.id); res.setHeader("Cache-Control", "no-store"); res.json({ data, count: data.length, meta: { resource: "transactions", complete: true, includes: ["collections", "payouts", "wallet_deposits"] } }); }
+    try { const user = await authenticate(req, res); if (!user) return; const data = await listTransactionHistory(user.id); const completeData = data.map((row) => ({ ...row, resourceType: String(row.kind), requestId: row.checkoutRequestId ?? row.conversationId ?? row.id, final: ["SUCCESS", "FAILED", "MANUAL_REVIEW"].includes(String(row.status).toUpperCase()) })); res.setHeader("Cache-Control", "no-store"); res.json({ data: completeData, count: completeData.length, meta: { resource: "transactions", complete: true, ordering: "createdAt_desc", includes: ["collections", "payouts", "wallet_deposits"], endpoints: ["/api/v1/transactions", "/api/v1/stkpush/history", "/api/v1/collections"] } }); }
     catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : "Unable to load transaction history" }); }
   };
   app.get("/api/v1/transactions", sendTransactionHistory);

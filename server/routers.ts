@@ -102,7 +102,7 @@ export const appRouter = router({
       const merchantRequestId = result.MerchantRequestID ?? result.merchantRequestId;
       if (!checkoutRequestId) throw new TRPCError({ code: "BAD_GATEWAY", message: "Daraja accepted no checkout request ID. No transaction was recorded." });
       await insertTransaction({ userId: ctx.user.id, checkoutRequestId, merchantRequestId: merchantRequestId ? String(merchantRequestId) : undefined, tillId: till ? Number(till.id) : null, accountReference, phoneNumber: input.phoneNumber, amount: input.amount, status: "PENDING" });
-      return { ...result, accountReference, till: till ? { id: Number(till.id), number: String(till.tillNumber), name: String(till.name) } : null, estimatedPlatformFee: calculatePlatformFee(input.amount), estimatedNetAmount: Math.max(0, input.amount - calculatePlatformFee(input.amount)) };
+      return { ...result, accountReference, checkoutRequestId, merchantRequestId: merchantRequestId ? String(merchantRequestId) : null, status: "PENDING" as const, requestRecorded: true, till: till ? { id: Number(till.id), number: String(till.tillNumber), name: String(till.name) } : null, estimatedPlatformFee: calculatePlatformFee(input.amount), estimatedNetAmount: Math.max(0, input.amount - calculatePlatformFee(input.amount)) };
     }),
     depositWallet: protectedProcedure.input(z.object({ phoneNumber: phoneSchema, amount: z.number().positive().max(1500000) })).mutation(async ({ ctx, input }) => {
       const stored = await getStoredConfig(ctx.user.id);

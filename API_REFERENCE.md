@@ -47,7 +47,7 @@ curl -i -X POST "$LEETEC_BASE_URL/api/v1/stkpush" \
   -d '{"phoneNumber":"254712345678","amount":10,"accountReference":"1TEST001","transactionDesc":"LeeTec API test","tillId":123}'
 ```
 
-A successful test returns a `CheckoutRequestID` and a pending request. Confirm the final result through `GET $LEETEC_BASE_URL/api/v1/transactions` or a signed webhook; do not treat request acceptance as completed payment.
+A successful test returns a `CheckoutRequestID`, `status: "PENDING"`, and `requestRecorded: true`. Confirm the final result through `GET $LEETEC_BASE_URL/api/v1/transactions` (or the equivalent `/api/v1/stkpush/history` and `/api/v1/collections` aliases) or a signed webhook; do not treat request acceptance as completed payment.
 
 ## STK Push — Lipa Na M-Pesa Online
 
@@ -120,7 +120,7 @@ GET https://leetec.online/api/v1/transactions
 Authorization: Bearer sk_live_your_secret_key
 ```
 
-This endpoint returns the complete current history for the authenticated account, including C2B/STK collections, manual ledger payout requests, and wallet deposits. Results are newest first and use `Cache-Control: no-store`.
+This endpoint returns the complete current history for the authenticated account, including C2B/STK collections, manual ledger payout requests, and wallet deposits. The equivalent `/api/v1/stkpush/history` and `/api/v1/collections` paths return the same authenticated dataset. Results are newest first, preserve pending and failed records, and use `Cache-Control: no-store`.
 
 ```json
 {
