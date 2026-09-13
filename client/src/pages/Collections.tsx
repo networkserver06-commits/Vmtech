@@ -33,6 +33,14 @@ export default function Collections() {
   const updateCollection = trpc.engine.updateCollection.useMutation({ onSuccess: () => { refresh(); setModal(null); setToast("Collection details updated"); }, onError: (error) => setToast(error.message) });
   const deleteCollection = trpc.engine.deleteCollection.useMutation({ onSuccess: () => { refresh(); setToast("Collection removed"); }, onError: (error) => setToast(error.message) });
   useEffect(() => { if (collections.data) setRows(collections.data.map((row) => ({ id: String(row.id), reference: String(row.checkoutRequestId ?? row.id), phone: String(row.phoneNumber), amount: Number(row.amount ?? 0), status: row.status === "SUCCESS" ? "Success" : row.status === "FAILED" ? "Failed" : "Pending", channel: String(row.checkoutRequestId ?? "").startsWith("C2B_") ? "C2B" : "STK Push", accountReference: String(row.accountReference ?? "—"), createdAt: new Date(String(row.createdAt)).toLocaleString("en-KE", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }), tillNumber: row.tillNumber ? String(row.tillNumber) : undefined }))); }, [collections.data]);
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    if (params.get("from") !== "payment-link") return;
+    const amount = params.get("amount") ?? "";
+    const reference = params.get("reference") ?? `1COL${Date.now().toString().slice(-8)}`;
+    setForm((current) => ({ ...current, amount, accountReference: reference }));
+    setModal("create");
+  }, [search]);
   useEffect(() => { if (!loading && !user) navigate("/login"); }, [loading, user, navigate]);
 
   const filtered = useMemo(() => rows.filter((row) => (status === "All statuses" || row.status === status) && `${row.reference} ${row.phone} ${row.accountReference} ${row.channel}`.toLowerCase().includes(query.toLowerCase())).sort((a, b) => { const av = String(a[sort.key]); const bv = String(b[sort.key]); const result = sort.key === "amount" ? Number(av) - Number(bv) : av.localeCompare(bv); return sort.direction === "asc" ? result : -result; }), [rows, query, status, sort]);
