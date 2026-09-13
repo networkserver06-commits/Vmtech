@@ -575,3 +575,10 @@ h1 { font-size: 27px; line-height: 1.1; letter-spacing: -1px; font-weight: 700; 
   .breadcrumbs strong { overflow: hidden; text-overflow: ellipsis; }
   .breadcrumb-home { flex-shrink: 0; }
 }
+
+/* Complete collection history remains scrollable, but identifiers never collide on small screens */
+.workspace-page .data-table { -webkit-overflow-scrolling: touch; }
+.workspace-page .data-head, .workspace-page .data-row { min-width: 980px; grid-template-columns: minmax(240px, 1.45fr) minmax(145px, .95fr) minmax(105px, .8fr) minmax(120px, .8fr) minmax(90px, .65fr) minmax(155px, .95fr) 28px; }
+.workspace-page .primary-cell strong, .workspace-page .customer-number, .workspace-page .created-cell { overflow-wrap: anywhere; word-break: break-word; }
+.workspace-page .data-row > strong { white-space: nowrap; }
+@media (max-width: 560px) { .workspace-page .data-table { margin-right: -1px; } .workspace-page .data-head, .workspace-page .data-row { padding-left: 14px; padding-right: 14px; } }

@@ -27,10 +27,13 @@ export function explainStkResult(resultCode: unknown, resultDescription: unknown
 }
 
 export function registerRestRoutes(app: Express) {
-  app.get("/api/v1/transactions", async (req, res) => {
+  const sendTransactionHistory = async (req: Request, res: Response) => {
     try { const user = await authenticate(req, res); if (!user) return; const data = await listTransactionHistory(user.id); res.setHeader("Cache-Control", "no-store"); res.json({ data, count: data.length, meta: { resource: "transactions", complete: true, includes: ["collections", "payouts", "wallet_deposits"] } }); }
     catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : "Unable to load transaction history" }); }
-  });
+  };
+  app.get("/api/v1/transactions", sendTransactionHistory);
+  app.get("/api/v1/stkpush/history", sendTransactionHistory);
+  app.get("/api/v1/collections", sendTransactionHistory);
   app.post("/api/v1/stkpush", async (req, res) => {
     try { const user = await authenticate(req, res); if (!user) return; const caller = appRouter.createCaller({ user, req: req as never, res: res as never }); const accountReference = typeof req.body.accountReference === "string" && req.body.accountReference.trim() ? req.body.accountReference.trim() : `1API${user.accountId ?? user.id}${Date.now().toString().slice(-8)}`; res.setHeader("Cache-Control", "no-store"); res.json(await caller.engine.stkPush({ phoneNumber: req.body.phoneNumber, amount: Number(req.body.amount), tillId: req.body.tillId ? Number(req.body.tillId) : undefined, accountReference, transactionDesc: req.body.transactionDesc })); }
     catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "STK Push failed" }); }

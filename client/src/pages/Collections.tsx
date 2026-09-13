@@ -39,7 +39,7 @@ export default function Collections() {
   const stkPush = trpc.engine.stkPush.useMutation({ onSuccess: (result) => { refresh(); setModal(null); showToast(`STK prompt sent${result.till?.name ? ` to ${result.till.name}` : ""}. Awaiting customer confirmation.`); }, onError: (error) => showToast(error.message || "STK Push failed. Check the M-PESA configuration and try again.", "error") });
   const updateCollection = trpc.engine.updateCollection.useMutation({ onSuccess: () => { refresh(); setModal(null); showToast("Collection details updated"); }, onError: (error) => showToast(error.message || "Collection update failed.", "error") });
   const deleteCollection = trpc.engine.deleteCollection.useMutation({ onSuccess: () => { refresh(); showToast("Collection removed"); }, onError: (error) => showToast(error.message || "Collection removal failed.", "error") });
-  useEffect(() => { if (collections.data) setRows(collections.data.map((row) => ({ id: String(row.id), reference: String(row.checkoutRequestId ?? row.id), phone: String(row.phoneNumber), amount: Number(row.amount ?? 0), status: row.status === "SUCCESS" ? "Success" : row.status === "FAILED" ? "Failed" : "Pending", channel: String(row.checkoutRequestId ?? "").startsWith("C2B_") ? "C2B" : "STK Push", accountReference: String(row.accountReference ?? "—"), createdAt: new Date(String(row.createdAt)).toLocaleString("en-KE", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }), tillNumber: row.tillNumber ? String(row.tillNumber) : undefined }))); }, [collections.data]);
+  useEffect(() => { if (collections.data) setRows(collections.data.map((row) => ({ id: String(row.id), reference: String(row.checkoutRequestId ?? row.id), phone: String(row.phoneNumber ?? "—"), amount: Number(row.amount ?? 0), status: row.status === "SUCCESS" ? "Success" : row.status === "FAILED" ? "Failed" : "Pending", channel: String(row.checkoutRequestId ?? "").startsWith("C2B_") ? "C2B" : "STK Push", accountReference: String(row.accountReference ?? "—"), createdAt: new Date(String(row.createdAt)).toLocaleString("en-KE", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }), tillNumber: row.tillNumber ? String(row.tillNumber) : undefined }))); }, [collections.data]);
   useEffect(() => {
     const params = new URLSearchParams(search);
     if (params.get("from") !== "payment-link") return;
@@ -51,7 +51,7 @@ export default function Collections() {
   useEffect(() => { if (!loading && !user) navigate("/login"); }, [loading, user, navigate]);
 
   const filtered = useMemo(() => rows.filter((row) => (status === "All statuses" || row.status === status) && `${row.reference} ${row.phone} ${row.accountReference} ${row.channel}`.toLowerCase().includes(query.toLowerCase())).sort((a, b) => { const av = String(a[sort.key]); const bv = String(b[sort.key]); const result = sort.key === "amount" ? Number(av) - Number(bv) : av.localeCompare(bv); return sort.direction === "asc" ? result : -result; }), [rows, query, status, sort]);
-  const total = rows.reduce((sum, row) => sum + row.amount, 0);
+  const total = rows.filter((row) => row.status === "Success").reduce((sum, row) => sum + row.amount, 0);
   const successful = rows.filter((row) => row.status === "Success").length;
   const successRate = rows.length ? Math.round((successful / rows.length) * 1000) / 10 : 0;
   if (loading || !user || collections.isLoading) return <div className="auth-state"><div className="brand-mark"><Zap size={17} /></div><span>Loading live collections…</span></div>;
