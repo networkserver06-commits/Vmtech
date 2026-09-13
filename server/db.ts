@@ -41,6 +41,12 @@ export async function getUserById(id: number) {
   return row ? userFromRow(row) : undefined;
 }
 
+export async function getUserByAccountId(accountId: string) {
+  const db = await getTurso(); if (!db) return undefined;
+  const row = asRows<TursoRow>(await db.execute({ sql: "SELECT * FROM users WHERE accountId = ? LIMIT 1", args: [accountId] }))[0];
+  return row ? userFromRow(row) : undefined;
+}
+
 export async function updateUserProfile(userId: number, name: string) {
   return execute({ sql: "UPDATE users SET name = ?, updatedAt = ? WHERE id = ?", args: [name.trim(), now(), userId] });
 }

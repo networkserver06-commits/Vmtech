@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { appRouter } from "./routers.js";
-import { authenticateApiKey, listTransactionHistory, markApiKeyUsed, recordC2bConfirmation, updateStkCallback } from "./db.js";
+import { authenticateApiKey, getUserByAccountId, listTransactionHistory, markApiKeyUsed, recordC2bConfirmation, updateStkCallback } from "./db.js";
 import { hashApiKey } from "./security.js";
 import { getStkCallbackToken } from "./security.js";
 
@@ -34,6 +34,18 @@ export function registerRestRoutes(app: Express) {
   app.get("/api/v1/transactions", sendTransactionHistory);
   app.get("/api/v1/stkpush/history", sendTransactionHistory);
   app.get("/api/v1/collections", sendTransactionHistory);
+  app.post("/api/v1/payment-links/stkpush", async (req, res) => {
+    try {
+      const accountId = String(req.query.accountId ?? req.body.accountId ?? "").trim();
+      if (!/^\d{1,16}$/.test(accountId)) return res.status(400).json({ error: "Invalid payment-link account" });
+      const user = await getUserByAccountId(accountId);
+      if (!user || user.isSuspended) return res.status(404).json({ error: "Payment link is unavailable" });
+      const caller = appRouter.createCaller({ user, req: req as never, res: res as never });
+      const accountReference = typeof req.body.accountReference === "string" && req.body.accountReference.trim() ? req.body.accountReference.trim() : `1LINK${Date.now().toString().slice(-10)}`;
+      res.setHeader("Cache-Control", "no-store");
+      res.json(await caller.engine.stkPush({ phoneNumber: req.body.phoneNumber, amount: Number(req.body.amount), tillId: req.body.tillId ? Number(req.body.tillId) : undefined, accountReference, transactionDesc: "LeeTec payment link" }));
+    } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "Payment request failed", status: "ERROR", final: true, webhookRequired: false }); }
+  });
   app.post("/api/v1/stkpush", async (req, res) => {
     try { const user = await authenticate(req, res); if (!user) return; const caller = appRouter.createCaller({ user, req: req as never, res: res as never }); const accountReference = typeof req.body.accountReference === "string" && req.body.accountReference.trim() ? req.body.accountReference.trim() : `1API${user.accountId ?? user.id}${Date.now().toString().slice(-8)}`; res.setHeader("Cache-Control", "no-store"); res.json(await caller.engine.stkPush({ phoneNumber: req.body.phoneNumber, amount: Number(req.body.amount), tillId: req.body.tillId ? Number(req.body.tillId) : undefined, accountReference, transactionDesc: req.body.transactionDesc })); }
     catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "STK Push failed", status: "ERROR", final: true, webhookRequired: false, message: "The STK request was not accepted and no payment record was created. Correct the error and retry." }); }

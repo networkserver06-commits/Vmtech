@@ -9,7 +9,8 @@ import Collections from "./pages/Collections";
 import Admin from "./pages/Admin";
 import Login from "./pages/Login";
 import Landing from "./pages/Landing";
-import Documentation from "./pages/Documentation";
+import Documentation from "@/pages/Documentation";
+import PaymentLinkCheckout from "@/pages/PaymentLinkCheckout";
 
 function Router() {
   return (
@@ -21,6 +22,7 @@ function Router() {
       <Route path="/collections" component={Collections} />
       <Route path="/docs" component={Documentation} />
       <Route path="/documentation" component={Documentation} />
+      <Route path="/pay" component={PaymentLinkCheckout} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
