@@ -616,3 +616,24 @@ h1 { font-size: 27px; line-height: 1.1; letter-spacing: -1px; font-weight: 700; 
 .collection-form-grid > label.field-error input { border-color: #ee7777; box-shadow: 0 0 0 3px rgba(238,119,119,.10); }
 .input-error { color: #ff9b9b; font-size: 11px; line-height: 1.35; }
 @media (max-width: 620px) { .collection-modal { width: min(100% - 24px, 520px); padding: 18px; } .collection-form-grid { grid-template-columns: 1fr; } .collection-form-grid .span-two { grid-column: auto; } .collection-modal .modal-actions { flex-direction: column-reverse; } .collection-modal .modal-actions button { width: 100%; justify-content: center; } }
+
+/* LeeTec brand system and accessible light theme */
+html:not(.dark) { --bg: #f3f7f5; --surface: #ffffff; --surface-2: #f7faf8; --surface-3: #eaf2ee; --line: rgba(20, 48, 39, .14); --line-strong: rgba(20, 48, 39, .22); --muted: #587069; --muted-2: #71867f; --text: #173129; --lime: #75b92f; --lime-dark: #4f8f20; --green: #168b5b; }
+html:not(.dark) body { background: var(--bg); color: var(--text); }
+html:not(.dark) .app-shell { background: radial-gradient(ellipse at 78% -10%, rgba(117,185,47,.14), transparent 32%), var(--bg); }
+html:not(.dark) .sidebar { background: rgba(255,255,255,.92); border-color: var(--line); box-shadow: 12px 0 32px rgba(33,67,52,.06); }
+html:not(.dark) .topbar { background: rgba(255,255,255,.84); border-color: var(--line); }
+html:not(.dark) .brand-name { color: #173129; }
+html:not(.dark) .brand-name span { color: #5b746b; }
+html:not(.dark) .workspace-switcher, html:not(.dark) .metric-card, html:not(.dark) .panel, html:not(.dark) .settings-card, html:not(.dark) .admin-panel { background: rgba(255,255,255,.86); border-color: var(--line); box-shadow: 0 12px 28px rgba(33,67,52,.07); }
+html:not(.dark) .hero-strip { background: linear-gradient(135deg, #e8f5dc, #f9fcf8); border-color: rgba(117,185,47,.30); }
+html:not(.dark) .hero-strip h2, html:not(.dark) .page-heading h1, html:not(.dark) .panel h3, html:not(.dark) .metric-value { color: #173129; }
+html:not(.dark) .nav-item, html:not(.dark) .breadcrumbs, html:not(.dark) .metric-top, html:not(.dark) .panel p { color: #587069; }
+html:not(.dark) input, html:not(.dark) select { background: #fff; color: #173129; border-color: var(--line-strong); }
+html:not(.dark) .theme-toggle { background: #eaf2ee; color: #315b4d; border-color: rgba(22,139,91,.18); }
+.theme-toggle { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 11px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); background: rgba(255,255,255,.04); font-size: 11px; font-weight: 700; transition: .2s ease; }
+.theme-toggle:hover { color: var(--lime); border-color: rgba(197,245,110,.35); transform: translateY(-1px); }
+.site-footer { font-family: 'Manrope', ui-sans-serif, sans-serif; }
+.site-footer::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 12px color-mix(in srgb, var(--lime) 60%, transparent); vertical-align: middle; }
+.site-footer span:first-child { font-weight: 700; letter-spacing: -.15px; }
+@media (max-width: 560px) { .theme-toggle span { display: none; } .theme-toggle { width: 34px; justify-content: center; padding: 0; } }

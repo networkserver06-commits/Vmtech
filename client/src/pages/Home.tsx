@@ -21,6 +21,7 @@ import {
   Link2,
   LayoutDashboard,
   Menu,
+  Moon,
   MoreHorizontal,
   Plus,
   Search,
@@ -35,12 +36,14 @@ import {
   Webhook,
   X,
   XCircle,
+  Sun,
   Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
+import { useTheme } from "@/contexts/ThemeContext";
 
 const navGroups = [
   {
@@ -136,6 +139,7 @@ function CopyButton({ value }: { value: string }) {
 
 export default function Home() {
   const [activeNav, setActiveNav] = useState("Overview");
+  const { theme, toggleTheme } = useTheme();
   const [, navigate] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
@@ -329,6 +333,7 @@ export default function Home() {
           <button className="mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={20} /></button>
           <div className="breadcrumbs"><span className="breadcrumb-home"><LayoutDashboard size={13} /> Workspace</span><span className="slash">/</span><strong>{activeNav}</strong></div>
           <div className="topbar-actions">
+            <button className="theme-toggle" type="button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`} onClick={() => toggleTheme?.()}>{theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}<span>{theme === "dark" ? "Light" : "Dark"}</span></button>
             <div className="search-wrap"><Search size={16} /><Input placeholder="Search workspace" aria-label="Search workspace" /><kbd>⌘ K</kbd></div>
             <button className="top-icon" aria-label="Notifications"><Bell size={18} /><span className="notification-dot" /></button>
             <button className="top-profile" aria-label="Open profile settings" onClick={() => { setProfileName(user.name ?? ""); setProfileOpen(true); }}><div className="profile-avatar small">{user.name?.slice(0, 2).toUpperCase() ?? "ME"}</div><span className="top-profile-name">{user.name?.split(" ")[0] ?? "Account"}</span><ChevronDown size={14} /></button>
