@@ -56,7 +56,8 @@ export function registerRestRoutes(app: Express) {
       const transaction = await getTransactionStatus(user.id, checkoutRequestId);
       if (!transaction) return res.status(404).json({ error: "Payment request was not found" });
       res.setHeader("Cache-Control", "no-store");
-      res.json(transaction);
+      const status = String(transaction.status ?? "PENDING").toUpperCase();
+      res.json({ ...transaction, status, final: ["SUCCESS", "FAILED", "CANCELLED"].includes(status) });
     } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "Unable to load payment status" }); }
   });
   app.post("/api/v1/stkpush", async (req, res) => {
