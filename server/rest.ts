@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { appRouter } from "./routers.js";
-import { authenticateApiKey, getUserByPaymentSlug, listTransactionHistory, markApiKeyUsed, recordC2bConfirmation, updateStkCallback } from "./db.js";
+import { authenticateApiKey, getTransactionStatus, getUserByPaymentSlug, listTransactionHistory, markApiKeyUsed, recordC2bConfirmation, updateStkCallback } from "./db.js";
 import { hashApiKey } from "./security.js";
 import { getStkCallbackToken } from "./security.js";
 
@@ -45,6 +45,19 @@ export function registerRestRoutes(app: Express) {
       res.setHeader("Cache-Control", "no-store");
       res.json(await caller.engine.stkPush({ phoneNumber: req.body.phoneNumber, amount: Number(req.body.amount), tillId: req.body.tillId ? Number(req.body.tillId) : undefined, accountReference, transactionDesc: "LeeTec payment link" }));
     } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "Payment request failed", status: "ERROR", final: true, webhookRequired: false }); }
+  });
+  app.get("/api/v1/payment-links/status", async (req, res) => {
+    try {
+      const slug = String(req.query.slug ?? "").trim().toLowerCase();
+      const checkoutRequestId = String(req.query.checkoutRequestId ?? "").trim();
+      if (!slug || !checkoutRequestId) return res.status(400).json({ error: "A username and checkout request ID are required" });
+      const user = await getUserByPaymentSlug(slug);
+      if (!user || user.isSuspended) return res.status(404).json({ error: "Payment link is unavailable" });
+      const transaction = await getTransactionStatus(user.id, checkoutRequestId);
+      if (!transaction) return res.status(404).json({ error: "Payment request was not found" });
+      res.setHeader("Cache-Control", "no-store");
+      res.json(transaction);
+    } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "Unable to load payment status" }); }
   });
   app.post("/api/v1/stkpush", async (req, res) => {
     try { const user = await authenticate(req, res); if (!user) return; const caller = appRouter.createCaller({ user, req: req as never, res: res as never }); const accountReference = typeof req.body.accountReference === "string" && req.body.accountReference.trim() ? req.body.accountReference.trim() : `1API${user.accountId ?? user.id}${Date.now().toString().slice(-8)}`; res.setHeader("Cache-Control", "no-store"); res.json(await caller.engine.stkPush({ phoneNumber: req.body.phoneNumber, amount: Number(req.body.amount), tillId: req.body.tillId ? Number(req.body.tillId) : undefined, accountReference, transactionDesc: req.body.transactionDesc })); }
