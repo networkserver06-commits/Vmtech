@@ -5,7 +5,7 @@ import { getSessionCookieOptions } from "./_core/cookies.js";
 import { systemRouter } from "./_core/systemRouter.js";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc.js";
 import { isConfiguredAdminEmail } from "./_core/env.js";
-import { adjustWallet, calculatePlatformFee, createCollection, createPayout, createReservedPayout, createTill, createWebhook, deleteCollection, deletePayout, deleteTill, deleteWebhook, getAdminOverview, getOverviewData, getStoredMpesaConfig, getSystemSettings, getTill, getWalletBalance, insertApiKey, insertTransaction, insertWalletDeposit, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayouts, listTills, listWalletDeposits, listWalletLedger, listWebhooks, revokeApiKey, saveMpesaConfig, setUserSuspended, testWebhook, updateCollection, updatePayout, updateTill, updateUserProfile, writeAuditLog } from "./db.js";
+import { adjustWallet, calculatePlatformFee, createCollection, createPayout, createReservedPayout, createTill, createWebhook, deleteApiKey, deleteCollection, deletePayout, deleteTill, deleteWebhook, getAdminOverview, getOverviewData, getStoredMpesaConfig, getSystemSettings, getTill, getWalletBalance, insertApiKey, insertTransaction, insertWalletDeposit, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayouts, listTills, listWalletDeposits, listWalletLedger, listWebhooks, revokeApiKey, saveMpesaConfig, setUserSuspended, testWebhook, updateCollection, updatePayout, updateTill, updateUserProfile, writeAuditLog } from "./db.js";
 import { createSecurityCredential, encryptSecret, generateApiKey, generatePrefixedReference, getStkCallbackToken, hashApiKey } from "./security.js";
 import { encryptedConfigToDaraja, registerC2bUrls, triggerStkPush } from "./mpesa.js";
 
@@ -70,6 +70,7 @@ export const appRouter = router({
     }),
     listApiKeys: protectedProcedure.query(({ ctx }) => listApiKeys(ctx.user.id)),
     revokeApiKey: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => revokeApiKey(ctx.user.id, input.id)),
+    deleteApiKey: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => { const result = await deleteApiKey(ctx.user.id, input.id); if (Number(result?.rowsAffected ?? 0) !== 1) throw new TRPCError({ code: "NOT_FOUND", message: "API key was not found." }); return { success: true, id: input.id }; }),
     listTills: protectedProcedure.query(({ ctx }) => listTills(ctx.user.id)),
     createTill: protectedProcedure.input(z.object({ tillNumber: z.string().regex(/^\d{5,8}$/, "Enter a valid M-PESA till or PayBill number"), name: z.string().min(2).max(80), location: z.string().max(120).optional(), paymentType: z.enum(["BUY_GOODS", "PAYBILL"]).default("BUY_GOODS"), businessShortcode: z.string().regex(/^\d{5,8}$/, "Enter a valid shortcode").optional() })).mutation(async ({ ctx, input }) => {
       const liveEnabled = process.env.MPESA_LIVE_ENABLED === "true" || process.env.MPESA_ENVIRONMENT === "PRODUCTION";

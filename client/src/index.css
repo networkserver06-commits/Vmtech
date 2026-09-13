@@ -604,3 +604,8 @@ h1 { font-size: 27px; line-height: 1.1; letter-spacing: -1px; font-weight: 700; 
 .key-history-row > div { display: grid; gap: 3px; min-width: 0; }
 .key-history-row strong { color: #eaf3f1; font-size: 12px; }
 .key-history-row small { color: #81919a; font-size: 10px; }
+
+.key-history-actions { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+.key-history-actions .secret-toggle { display: inline-flex; }
+.key-delete-button { min-height: 28px; padding: 0 8px; font-size: 10px; }
+@media (max-width: 760px) { .key-history-row { align-items: flex-start; flex-direction: column; } .key-history-actions { width: 100%; } .key-history-actions .till-status { margin-left: auto; } }
