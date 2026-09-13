@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { appRouter } from "./routers.js";
-import { authenticateApiKey, getUserById, markApiKeyUsed, recordC2bConfirmation, updateStkCallback } from "./db.js";
+import { authenticateApiKey, getUserById, listCollections, markApiKeyUsed, recordC2bConfirmation, updateStkCallback } from "./db.js";
 import { hashApiKey } from "./security.js";
 import { getStkCallbackToken } from "./security.js";
 
@@ -27,6 +27,10 @@ export function explainStkResult(resultCode: unknown, resultDescription: unknown
 }
 
 export function registerRestRoutes(app: Express) {
+  app.get("/api/v1/transactions", async (req, res) => {
+    try { const user = await authenticate(req, res); if (!user) return; res.json({ data: await listCollections(user.id) }); }
+    catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : "Unable to load transaction history" }); }
+  });
   app.post("/api/v1/stkpush", async (req, res) => {
     try { const user = await authenticate(req, res); if (!user) return; const caller = appRouter.createCaller({ user, req: req as never, res: res as never }); res.json(await caller.engine.stkPush({ phoneNumber: req.body.phoneNumber, amount: Number(req.body.amount), tillId: req.body.tillId ? Number(req.body.tillId) : undefined, accountReference: req.body.accountReference, transactionDesc: req.body.transactionDesc })); }
     catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "STK Push failed" }); }
