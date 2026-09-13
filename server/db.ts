@@ -95,6 +95,19 @@ export async function updateCollection(userId: number, id: number, input: { phon
 export async function deleteCollection(userId: number, id: number) { return execute({ sql: "DELETE FROM transactions WHERE id = ? AND userId = ?", args: [id, userId] }); }
 export async function listPayouts(userId: number) { const result = await execute({ sql: "SELECT * FROM payouts WHERE userId = ? ORDER BY datetime(createdAt) DESC", args: [userId] }); return result ? asRows<TursoRow>(result) : []; }
 export async function createPayout(input: { userId: number; recipientPhone: string; amount: number; commandId: "BusinessPayment" | "SalaryPayment"; status?: string }) { return execute({ sql: "INSERT INTO payouts (userId, recipientPhone, amount, commandId, status) VALUES (?, ?, ?, ?, ?)", args: [input.userId, input.recipientPhone, input.amount.toFixed(2), input.commandId, input.status ?? "PENDING"] }); }
+export async function createReservedPayout(input: { userId: number; recipientPhone: string; amount: number; commandId: "BusinessPayment" | "SalaryPayment" }) {
+  const db = await getTurso(); if (!db) return null;
+  const amount = input.amount.toFixed(2); const reference = `PAYOUT_${Date.now()}_${randomUUID().slice(0, 8)}`;
+  const reservation = await db.execute({ sql: "UPDATE wallets SET balance = CAST(balance AS REAL) - ?, updatedAt = ? WHERE userId = ? AND CAST(balance AS REAL) >= ?", args: [amount, now(), input.userId, amount] });
+  if (Number(reservation.rowsAffected ?? 0) !== 1) return null;
+  try {
+    const result = await db.batch([{ sql: "INSERT INTO payouts (userId, recipientPhone, amount, commandId, status) VALUES (?, ?, ?, ?, 'MANUAL_REVIEW')", args: [input.userId, input.recipientPhone, amount, input.commandId] }, { sql: "INSERT INTO walletTransactions (walletId, amount, type, reference, description) SELECT id, ?, 'PAYOUT_RESERVATION', ?, ? FROM wallets WHERE userId = ?", args: [(-input.amount).toFixed(2), reference, `Manual-review payout reservation for ${input.recipientPhone}`, input.userId] }], "write");
+    return result[0];
+  } catch (error) {
+    await db.execute({ sql: "UPDATE wallets SET balance = CAST(balance AS REAL) + ?, updatedAt = ? WHERE userId = ?", args: [amount, now(), input.userId] });
+    throw error;
+  }
+}
 export async function updatePayout(userId: number, id: number, input: { recipientPhone: string; amount: number; commandId: "BusinessPayment" | "SalaryPayment" }) { return execute({ sql: "UPDATE payouts SET recipientPhone = ?, amount = ?, commandId = ? WHERE id = ? AND userId = ?", args: [input.recipientPhone, input.amount.toFixed(2), input.commandId, id, userId] }); }
 export async function deletePayout(userId: number, id: number) { return execute({ sql: "DELETE FROM payouts WHERE id = ? AND userId = ?", args: [id, userId] }); }
 

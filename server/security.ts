@@ -1,6 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, publicEncrypt, randomBytes, constants } from "node:crypto";
 
-const keyMaterial = process.env.LEETEC_CREDENTIAL_KEY || "leetec-build-key-change-before-production";
+const keyMaterial = process.env.LEETEC_CREDENTIAL_KEY ?? (process.env.NODE_ENV === "production" ? (() => { throw new Error("LEETEC_CREDENTIAL_KEY is required in production"); })() : "development-only-leetec-key");
 const encryptionKey = createHash("sha256").update(keyMaterial).digest();
 
 export function encryptSecret(value: string) {

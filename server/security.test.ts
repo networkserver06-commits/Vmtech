@@ -20,4 +20,9 @@ describe("LeeTec Engine security primitives", () => {
   it("signs webhook payloads with HMAC SHA-256", () => {
     expect(signWebhook('{"event":"payment.success"}', "secret")).toMatch(/^sha256=[a-f0-9]{64}$/);
   });
+
+  it("does not expose the old production fallback key in source", async () => {
+    const source = await import("node:fs/promises").then((fs) => fs.readFile(new URL("./security.ts", import.meta.url), "utf8"));
+    expect(source).not.toContain("leetec-build-key-change-before-production");
+  });
 });

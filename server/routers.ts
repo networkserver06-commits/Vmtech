@@ -5,7 +5,7 @@ import { getSessionCookieOptions } from "./_core/cookies.js";
 import { systemRouter } from "./_core/systemRouter.js";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc.js";
 import { isConfiguredAdminEmail } from "./_core/env.js";
-import { adjustWallet, calculatePlatformFee, createCollection, createPayout, createTill, createWebhook, deleteCollection, deletePayout, deleteTill, deleteWebhook, getAdminOverview, getOverviewData, getStoredMpesaConfig, getSystemSettings, getTill, getWalletBalance, insertApiKey, insertTransaction, insertWalletDeposit, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayouts, listTills, listWalletDeposits, listWalletLedger, listWebhooks, revokeApiKey, saveMpesaConfig, setUserSuspended, updateCollection, updatePayout, updateTill, updateUserProfile, writeAuditLog } from "./db.js";
+import { adjustWallet, calculatePlatformFee, createCollection, createPayout, createReservedPayout, createTill, createWebhook, deleteCollection, deletePayout, deleteTill, deleteWebhook, getAdminOverview, getOverviewData, getStoredMpesaConfig, getSystemSettings, getTill, getWalletBalance, insertApiKey, insertTransaction, insertWalletDeposit, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayouts, listTills, listWalletDeposits, listWalletLedger, listWebhooks, revokeApiKey, saveMpesaConfig, setUserSuspended, updateCollection, updatePayout, updateTill, updateUserProfile, writeAuditLog } from "./db.js";
 import { createSecurityCredential, encryptSecret, generateApiKey, generatePrefixedReference, getStkCallbackToken, hashApiKey } from "./security.js";
 import { encryptedConfigToDaraja, registerC2bUrls, triggerStkPush } from "./mpesa.js";
 
@@ -126,9 +126,8 @@ export const appRouter = router({
       }
     }),
     payout: protectedProcedure.input(z.object({ phoneNumber: phoneSchema, amount: amountSchema, commandId: z.enum(["BusinessPayment", "SalaryPayment"]).default("BusinessPayment") })).mutation(async ({ ctx, input }) => {
-      const available = await getWalletBalance(ctx.user.id);
-      if (available < input.amount) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Insufficient wallet balance" });
-      const result = await createPayout({ userId: ctx.user.id, recipientPhone: input.phoneNumber, amount: input.amount, commandId: input.commandId, status: "MANUAL_REVIEW" });
+      const result = await createReservedPayout({ userId: ctx.user.id, recipientPhone: input.phoneNumber, amount: input.amount, commandId: input.commandId });
+      if (!result) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Insufficient wallet balance" });
       return { status: "MANUAL_REVIEW", message: "Payout recorded for manual portal processing. No B2C or B2B API call was made.", payoutId: result?.lastInsertRowid ?? null };
     }),
     registerC2b: protectedProcedure.input(z.object({ tillId: z.number().int().positive().optional(), confirmationUrl: z.string().url(), validationUrl: z.string().url(), responseType: z.enum(["Completed", "Cancelled"]).default("Completed") })).mutation(async ({ ctx, input }) => {
