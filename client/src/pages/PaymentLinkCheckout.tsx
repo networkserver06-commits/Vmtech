@@ -10,7 +10,8 @@ function normalizePhone(value: string) {
 
 export default function PaymentLinkCheckout() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
-  const merchantSlug = window.location.pathname.replace(/^\//, "").trim().toLowerCase();
+  const pathParts = window.location.pathname.split("/").filter(Boolean);
+  const merchantSlug = pathParts[0] === "pay" ? (pathParts[1] ?? "").trim().toLowerCase() : "";
   const accountId = params.get("accountId") ?? "";
   const reference = params.get("reference") ?? `1LINK${Date.now().toString().slice(-8)}`;
   const fixedAmount = params.get("amount") ?? "";
@@ -29,10 +30,10 @@ export default function PaymentLinkCheckout() {
     if (!merchantSlug && !/^\d{1,16}$/.test(accountId)) return setError("This payment link is incomplete or unavailable. Ask the merchant for a new link.");
     setPending(true);
     try {
-      const merchantQuery = merchantSlug && merchantSlug !== "pay" ? `slug=${encodeURIComponent(merchantSlug)}` : `accountId=${encodeURIComponent(accountId)}`;
+      const merchantQuery = merchantSlug ? `slug=${encodeURIComponent(merchantSlug)}` : `accountId=${encodeURIComponent(accountId)}`;
       const response = await fetch(`/api/v1/payment-links/stkpush?${merchantQuery}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phoneNumber, amount: numericAmount, accountReference: reference }) });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(String(body.error ?? body.message ?? "Payment request failed. Please try again."));
+      if (!response.ok) throw new Error(response.status === 404 ? "This payment link is unavailable. The merchant may have disabled or deleted it." : String(body.error ?? body.message ?? "Payment request failed. Please try again."));
       setResult(body); setPhone("");
     } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Payment request failed. Please try again."); }
     finally { setPending(false); }

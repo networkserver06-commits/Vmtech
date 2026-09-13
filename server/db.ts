@@ -51,7 +51,7 @@ export async function getUserByPaymentSlug(slug: string) {
   const db = await getTurso(); if (!db) return undefined;
   const normalized = slug.toLowerCase().replace(/[^a-z0-9]/g, "");
   const rows = asRows<TursoRow>(await db.execute({ sql: "SELECT * FROM users WHERE lower(replace(name, ' ', '')) = ? OR lower(name) LIKE ? ORDER BY id ASC", args: [normalized, `${normalized}%`] }));
-  const row = rows.find((candidate) => String(candidate.name ?? "").toLowerCase().split(/\s+/)[0].replace(/[^a-z0-9]/g, "") === normalized) ?? rows[0];
+  const row = rows.find((candidate) => String(candidate.name ?? "").toLowerCase().split(/\s+/)[0].replace(/[^a-z0-9]/g, "") === normalized);
   return row ? userFromRow(row) : undefined;
 }
 

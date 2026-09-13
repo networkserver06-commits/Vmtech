@@ -23,8 +23,8 @@ function Router() {
       <Route path="/docs" component={Documentation} />
       <Route path="/documentation" component={Documentation} />
       <Route path="/pay" component={PaymentLinkCheckout} />
-      <Route path="/404" component={NotFound} />
-      <Route path="/:merchantSlug" component={PaymentLinkCheckout} />
+      <Route path="/pay/:merchantSlug" component={PaymentLinkCheckout} />
+      <Route path="/pay" component={PaymentLinkCheckout} />
       <Route component={NotFound} />
     </Switch>
   );
