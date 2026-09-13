@@ -97,7 +97,7 @@ export const appRouter = router({
       if (liveEnabled && partyB !== approvedPartyB) throw new TRPCError({ code: "BAD_REQUEST", message: "This Till is not the approved production Buy Goods Till." });
       const config = { ...baseConfig, shortcode: process.env.MPESA_SHORTCODE ?? baseConfig.shortcode };
       const accountReference = input.accountReference ?? generatePrefixedReference();
-      const result = await triggerStkPush(config, { phoneNumber: input.phoneNumber, amount: input.amount, accountReference, transactionDesc: input.transactionDesc, callbackUrl: stkCallbackUrl(), partyB, transactionType: "CustomerBuyGoodsOnline" });
+      const result = await triggerStkPush(config, { phoneNumber: input.phoneNumber, amount: input.amount, accountReference, transactionDesc: input.transactionDesc, callbackUrl: stkCallbackUrl(), partyB, transactionType: paymentType === "PAYBILL" ? "CustomerPayBillOnline" : "CustomerBuyGoodsOnline" });
       const checkoutRequestId = String(result.CheckoutRequestID ?? result.checkoutRequestId ?? "");
       const merchantRequestId = result.MerchantRequestID ?? result.merchantRequestId;
       if (!checkoutRequestId) throw new TRPCError({ code: "BAD_GATEWAY", message: "Daraja accepted no checkout request ID. No transaction was recorded." });
