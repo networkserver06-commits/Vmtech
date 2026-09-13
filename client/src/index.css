@@ -582,3 +582,13 @@ h1 { font-size: 27px; line-height: 1.1; letter-spacing: -1px; font-weight: 700; 
 .workspace-page .primary-cell strong, .workspace-page .customer-number, .workspace-page .created-cell { overflow-wrap: anywhere; word-break: break-word; }
 .workspace-page .data-row > strong { white-space: nowrap; }
 @media (max-width: 560px) { .workspace-page .data-table { margin-right: -1px; } .workspace-page .data-head, .workspace-page .data-row { padding-left: 14px; padding-right: 14px; } }
+
+/* Webhook delivery health and client-response controls */
+.webhook-row .till-details { display: grid; gap: 4px; min-width: 0; }
+.webhook-row .till-details small { font-size: 9px; }
+.webhook-row-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.webhook-row-actions .secondary-button, .webhook-row-actions .danger-button { min-height: 32px; padding: 0 10px; white-space: nowrap; }
+.webhook-delivery-ok { color: var(--green); }
+.webhook-delivery-failed { color: #f58c8c; }
+.webhook-delivery-none { color: #81919a; }
+@media (max-width: 760px) { .webhook-row-actions { width: 100%; } .webhook-row-actions button { flex: 1; justify-content: center; } }

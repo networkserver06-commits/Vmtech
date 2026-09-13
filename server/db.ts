@@ -138,25 +138,26 @@ export async function listAuditLogs() { const result = await execute("SELECT * F
 export async function getSystemSettings() { const result = await execute("SELECT * FROM systemSettings"); return result ? asRows<TursoRow>(result) : [{ settingKey: "PLATFORM_SHORTCODE", value: "4208798", description: "Primary M-PESA Paybill" }, { settingKey: "MAINTENANCE_MODE", value: "false", description: "Block new money movement requests" }]; }
 export async function getStoredMpesaConfig(userId: number) { const result = await execute({ sql: "SELECT * FROM mpesaConfigs WHERE userId = ? LIMIT 1", args: [userId] }); return result ? asRows<TursoRow>(result)[0] : undefined; }
 export async function saveMpesaConfig(input: { userId: number; shortcode: string; consumerKeyEncrypted: string; consumerSecretEncrypted: string; passkeyEncrypted: string; b2cInitiatorName?: string; b2cInitiatorPasswordEncrypted?: string | null; environment: string }) { return execute({ sql: `INSERT INTO mpesaConfigs (userId, shortcode, consumerKeyEncrypted, consumerSecretEncrypted, passkeyEncrypted, b2cInitiatorName, b2cInitiatorPasswordEncrypted, environment) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(userId) DO UPDATE SET shortcode=excluded.shortcode, consumerKeyEncrypted=excluded.consumerKeyEncrypted, consumerSecretEncrypted=excluded.consumerSecretEncrypted, passkeyEncrypted=excluded.passkeyEncrypted, b2cInitiatorName=excluded.b2cInitiatorName, b2cInitiatorPasswordEncrypted=excluded.b2cInitiatorPasswordEncrypted, environment=excluded.environment`, args: [input.userId, input.shortcode, input.consumerKeyEncrypted, input.consumerSecretEncrypted, input.passkeyEncrypted, input.b2cInitiatorName ?? null, input.b2cInitiatorPasswordEncrypted ?? null, input.environment] }); }
-export async function listWebhooks(userId: number) { const result = await execute({ sql: "SELECT id, url, isActive, createdAt FROM webhookEndpoints WHERE userId = ? AND isActive = 1 ORDER BY datetime(createdAt) DESC", args: [userId] }); return result ? asRows<TursoRow>(result) : []; }
+export async function listWebhooks(userId: number) { const result = await execute({ sql: "SELECT e.id, e.url, e.isActive, e.createdAt, l.status AS lastDeliveryStatus, l.statusCode AS lastStatusCode, l.createdAt AS lastDeliveryAt FROM webhookEndpoints e LEFT JOIN webhookLogs l ON l.id = (SELECT MAX(id) FROM webhookLogs WHERE webhookEndpointId = e.id) WHERE e.userId = ? AND e.isActive = 1 ORDER BY datetime(e.createdAt) DESC", args: [userId] }); return result ? asRows<TursoRow>(result) : []; }
 export async function createWebhook(input: { userId: number; url: string; secretEncrypted: string }) { return execute({ sql: "INSERT INTO webhookEndpoints (userId, url, secretEncrypted) VALUES (?, ?, ?)", args: [input.userId, input.url, input.secretEncrypted] }); }
 export async function deleteWebhook(userId: number, id: number) { return execute({ sql: "DELETE FROM webhookEndpoints WHERE id = ? AND userId = ?", args: [id, userId] }); }
+async function deliverWebhook(endpoint: TursoRow, event: string, data: Record<string, unknown>) {
+  const db = await getTurso(); if (!db) return { status: "FAILED", statusCode: 0, deliveryId: null };
+  const deliveryId = randomUUID(); const body = JSON.stringify({ id: deliveryId, event, createdAt: new Date().toISOString(), data });
+  let responseStatus = 0; let delivered = false;
+  for (let attempt = 0; attempt < 3 && !delivered; attempt += 1) {
+    try { const response = await fetch(String(endpoint.url), { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json", "User-Agent": "LeeTec-Webhook/1.0", "X-LeeTec-Event": event, "X-LeeTec-Delivery": deliveryId, "X-LeeTec-Signature": signWebhook(body, decryptSecret(String(endpoint.secretEncrypted))) }, body, signal: AbortSignal.timeout(8000) }); responseStatus = response.status; delivered = response.ok; }
+    catch { responseStatus = 0; }
+    if (!delivered && attempt < 2) await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+  }
+  await db.execute({ sql: "INSERT INTO webhookLogs (webhookEndpointId, statusCode, payload, status) VALUES (?, ?, ?, ?)", args: [Number(endpoint.id), responseStatus, body, delivered ? "DELIVERED" : "FAILED"] });
+  return { status: delivered ? "DELIVERED" : "FAILED", statusCode: responseStatus, deliveryId };
+}
+export async function testWebhook(userId: number, id: number) { const db = await getTurso(); if (!db) return null; const endpoint = asRows<TursoRow>(await db.execute({ sql: "SELECT id, url, secretEncrypted FROM webhookEndpoints WHERE id = ? AND userId = ? AND isActive = 1 LIMIT 1", args: [id, userId] }))[0]; if (!endpoint) return null; return deliverWebhook(endpoint, "webhook.test", { message: "LeeTec webhook connection test", sentAt: new Date().toISOString() }); }
 export async function dispatchUserWebhooks(userId: number, event: string, data: Record<string, unknown>) {
   const db = await getTurso(); if (!db) return;
   const endpoints = asRows<TursoRow>(await db.execute({ sql: "SELECT id, url, secretEncrypted FROM webhookEndpoints WHERE userId = ? AND isActive = 1", args: [userId] }));
-  for (const endpoint of endpoints) {
-    const deliveryId = randomUUID();
-    const body = JSON.stringify({ id: deliveryId, event, createdAt: new Date().toISOString(), data });
-    let responseStatus = 0; let delivered = false;
-    for (let attempt = 0; attempt < 3 && !delivered; attempt += 1) {
-      try {
-        const response = await fetch(String(endpoint.url), { method: "POST", headers: { "Content-Type": "application/json", "User-Agent": "LeeTec-Webhook/1.0", "X-LeeTec-Event": event, "X-LeeTec-Delivery": deliveryId, "X-LeeTec-Signature": signWebhook(body, decryptSecret(String(endpoint.secretEncrypted))) }, body, signal: AbortSignal.timeout(8000) });
-        responseStatus = response.status; delivered = response.ok;
-      } catch { responseStatus = 0; }
-      if (!delivered && attempt < 2) await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
-    }
-    await db.execute({ sql: "INSERT INTO webhookLogs (webhookEndpointId, statusCode, payload, status) VALUES (?, ?, ?, ?)", args: [Number(endpoint.id), responseStatus, body, delivered ? "DELIVERED" : "FAILED"] });
-  }
+  for (const endpoint of endpoints) await deliverWebhook(endpoint, event, data);
 }
 export async function authenticateApiKey(keyHash: string) { const result = await execute({ sql: "SELECT a.*, u.* FROM apiKeys a JOIN users u ON u.id = a.userId WHERE a.keyHash = ? AND a.isActive = 1 LIMIT 1", args: [keyHash] }); const row = result ? asRows<TursoRow>(result)[0] : undefined; return row ? { keyId: Number(row.id), user: userFromRow(row) } : null; }
 export async function markApiKeyUsed(keyId: number) { return execute({ sql: "UPDATE apiKeys SET lastUsedAt = ? WHERE id = ?", args: [now(), keyId] }); }

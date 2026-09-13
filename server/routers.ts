@@ -5,7 +5,7 @@ import { getSessionCookieOptions } from "./_core/cookies.js";
 import { systemRouter } from "./_core/systemRouter.js";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc.js";
 import { isConfiguredAdminEmail } from "./_core/env.js";
-import { adjustWallet, calculatePlatformFee, createCollection, createPayout, createReservedPayout, createTill, createWebhook, deleteCollection, deletePayout, deleteTill, deleteWebhook, getAdminOverview, getOverviewData, getStoredMpesaConfig, getSystemSettings, getTill, getWalletBalance, insertApiKey, insertTransaction, insertWalletDeposit, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayouts, listTills, listWalletDeposits, listWalletLedger, listWebhooks, revokeApiKey, saveMpesaConfig, setUserSuspended, updateCollection, updatePayout, updateTill, updateUserProfile, writeAuditLog } from "./db.js";
+import { adjustWallet, calculatePlatformFee, createCollection, createPayout, createReservedPayout, createTill, createWebhook, deleteCollection, deletePayout, deleteTill, deleteWebhook, getAdminOverview, getOverviewData, getStoredMpesaConfig, getSystemSettings, getTill, getWalletBalance, insertApiKey, insertTransaction, insertWalletDeposit, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayouts, listTills, listWalletDeposits, listWalletLedger, listWebhooks, revokeApiKey, saveMpesaConfig, setUserSuspended, testWebhook, updateCollection, updatePayout, updateTill, updateUserProfile, writeAuditLog } from "./db.js";
 import { createSecurityCredential, encryptSecret, generateApiKey, generatePrefixedReference, getStkCallbackToken, hashApiKey } from "./security.js";
 import { encryptedConfigToDaraja, registerC2bUrls, triggerStkPush } from "./mpesa.js";
 
@@ -140,7 +140,8 @@ export const appRouter = router({
       return registerC2bUrls(config, input);
     }),
     listWebhooks: protectedProcedure.query(({ ctx }) => listWebhooks(ctx.user.id)),
-    createWebhook: protectedProcedure.input(z.object({ url: z.string().url(), secret: z.string().min(16).max(200) })).mutation(({ ctx, input }) => createWebhook({ userId: ctx.user.id, url: input.url, secretEncrypted: encryptSecret(input.secret) })),
+    createWebhook: protectedProcedure.input(z.object({ url: z.string().trim().url().refine((value) => /^https?:\/\//i.test(value), "Webhook URL must use HTTP or HTTPS"), secret: z.string().trim().min(16).max(200) })).mutation(async ({ ctx, input }) => { const result = await createWebhook({ userId: ctx.user.id, url: input.url, secretEncrypted: encryptSecret(input.secret) }); return { success: true, id: Number(result?.lastInsertRowid ?? 0), url: input.url, message: "Webhook endpoint added. Use Test delivery to verify your client response." }; }),
+    testWebhook: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => { const result = await testWebhook(ctx.user.id, input.id); if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "Webhook endpoint was not found or is inactive." }); return { ...result, message: result.status === "DELIVERED" ? "Webhook client responded successfully." : `Webhook client did not respond with 2xx (HTTP ${result.statusCode || "network error"}).` }; }),
     deleteWebhook: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteWebhook(ctx.user.id, input.id)),
   }),
   admin: router({
