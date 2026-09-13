@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { appRouter } from "./routers.js";
-import { authenticateApiKey, getUserByAccountId, getUserByPaymentSlug, listTransactionHistory, markApiKeyUsed, recordC2bConfirmation, updateStkCallback } from "./db.js";
+import { authenticateApiKey, getUserByPaymentSlug, listTransactionHistory, markApiKeyUsed, recordC2bConfirmation, updateStkCallback } from "./db.js";
 import { hashApiKey } from "./security.js";
 import { getStkCallbackToken } from "./security.js";
 
@@ -37,9 +37,8 @@ export function registerRestRoutes(app: Express) {
   app.post("/api/v1/payment-links/stkpush", async (req, res) => {
     try {
       const slug = String(req.query.slug ?? "").trim().toLowerCase();
-      const accountId = String(req.query.accountId ?? req.body.accountId ?? "").trim();
-      if (!slug && !/^\d{1,16}$/.test(accountId)) return res.status(400).json({ error: "Invalid payment-link merchant" });
-      const user = slug ? await getUserByPaymentSlug(slug) : await getUserByAccountId(accountId);
+      if (!slug) return res.status(400).json({ error: "A username payment link is required" });
+      const user = await getUserByPaymentSlug(slug);
       if (!user || user.isSuspended) return res.status(404).json({ error: "Payment link is unavailable" });
       const caller = appRouter.createCaller({ user, req: req as never, res: res as never });
       const accountReference = typeof req.body.accountReference === "string" && req.body.accountReference.trim() ? req.body.accountReference.trim() : `1LINK${Date.now().toString().slice(-10)}`;

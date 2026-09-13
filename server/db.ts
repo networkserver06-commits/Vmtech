@@ -41,12 +41,6 @@ export async function getUserById(id: number) {
   return row ? userFromRow(row) : undefined;
 }
 
-export async function getUserByAccountId(accountId: string) {
-  const db = await getTurso(); if (!db) return undefined;
-  const row = asRows<TursoRow>(await db.execute({ sql: "SELECT * FROM users WHERE accountId = ? LIMIT 1", args: [accountId] }))[0];
-  return row ? userFromRow(row) : undefined;
-}
-
 export async function getUserByPaymentSlug(slug: string) {
   const db = await getTurso(); if (!db) return undefined;
   const normalized = slug.toLowerCase().replace(/[^a-z0-9]/g, "");
