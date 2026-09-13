@@ -101,7 +101,8 @@ export const appRouter = router({
       const checkoutRequestId = String(result.CheckoutRequestID ?? result.checkoutRequestId ?? "");
       const merchantRequestId = result.MerchantRequestID ?? result.merchantRequestId;
       if (!checkoutRequestId) throw new TRPCError({ code: "BAD_GATEWAY", message: "Daraja accepted no checkout request ID. No transaction was recorded." });
-      await insertTransaction({ userId: ctx.user.id, checkoutRequestId, merchantRequestId: merchantRequestId ? String(merchantRequestId) : undefined, tillId: till ? Number(till.id) : null, accountReference, phoneNumber: input.phoneNumber, amount: input.amount, status: "PENDING" });
+      const recorded = await insertTransaction({ userId: ctx.user.id, checkoutRequestId, merchantRequestId: merchantRequestId ? String(merchantRequestId) : undefined, tillId: till ? Number(till.id) : null, accountReference, phoneNumber: input.phoneNumber, amount: input.amount, status: "PENDING" });
+      if (Number(recorded?.rowsAffected ?? 0) !== 1) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Daraja accepted the STK request, but LeeTec could not record it in Collections. Retry the request after checking the database connection." });
       return { ...result, accountReference, checkoutRequestId, merchantRequestId: merchantRequestId ? String(merchantRequestId) : null, status: "PENDING" as const, requestRecorded: true, till: till ? { id: Number(till.id), number: String(till.tillNumber), name: String(till.name) } : null, estimatedPlatformFee: calculatePlatformFee(input.amount), estimatedNetAmount: Math.max(0, input.amount - calculatePlatformFee(input.amount)) };
     }),
     depositWallet: protectedProcedure.input(z.object({ phoneNumber: phoneSchema, amount: z.number().positive().max(1500000) })).mutation(async ({ ctx, input }) => {
