@@ -592,3 +592,6 @@ h1 { font-size: 27px; line-height: 1.1; letter-spacing: -1px; font-weight: 700; 
 .webhook-delivery-failed { color: #f58c8c; }
 .webhook-delivery-none { color: #81919a; }
 @media (max-width: 760px) { .webhook-row-actions { width: 100%; } .webhook-row-actions button { flex: 1; justify-content: center; } }
+
+.status-badge.cancelled { color: #e8b86b; background: rgba(232,184,107,.10); border-color: rgba(232,184,107,.22); }
+.status-badge.cancelled .status-dot { background: #e8b86b; }

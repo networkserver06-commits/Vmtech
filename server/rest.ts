@@ -28,7 +28,7 @@ export function explainStkResult(resultCode: unknown, resultDescription: unknown
 
 export function registerRestRoutes(app: Express) {
   const sendTransactionHistory = async (req: Request, res: Response) => {
-    try { const user = await authenticate(req, res); if (!user) return; const data = await listTransactionHistory(user.id); const completeData = data.map((row) => ({ ...row, resourceType: String(row.kind), requestId: row.checkoutRequestId ?? row.conversationId ?? row.id, final: ["SUCCESS", "FAILED", "MANUAL_REVIEW"].includes(String(row.status).toUpperCase()) })); res.setHeader("Cache-Control", "no-store"); res.json({ data: completeData, count: completeData.length, meta: { resource: "transactions", complete: true, ordering: "createdAt_desc", includes: ["collections", "payouts", "wallet_deposits"], endpoints: ["/api/v1/transactions", "/api/v1/stkpush/history", "/api/v1/collections"] } }); }
+    try { const user = await authenticate(req, res); if (!user) return; const data = await listTransactionHistory(user.id); const completeData = data.map((row) => ({ ...row, resourceType: String(row.kind), requestId: row.checkoutRequestId ?? row.conversationId ?? row.id, final: ["SUCCESS", "FAILED", "CANCELLED", "MANUAL_REVIEW"].includes(String(row.status).toUpperCase()) })); res.setHeader("Cache-Control", "no-store"); res.json({ data: completeData, count: completeData.length, meta: { resource: "transactions", complete: true, ordering: "createdAt_desc", includes: ["collections", "payouts", "wallet_deposits"], endpoints: ["/api/v1/transactions", "/api/v1/stkpush/history", "/api/v1/collections"] } }); }
     catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : "Unable to load transaction history" }); }
   };
   app.get("/api/v1/transactions", sendTransactionHistory);
@@ -36,7 +36,7 @@ export function registerRestRoutes(app: Express) {
   app.get("/api/v1/collections", sendTransactionHistory);
   app.post("/api/v1/stkpush", async (req, res) => {
     try { const user = await authenticate(req, res); if (!user) return; const caller = appRouter.createCaller({ user, req: req as never, res: res as never }); const accountReference = typeof req.body.accountReference === "string" && req.body.accountReference.trim() ? req.body.accountReference.trim() : `1API${user.accountId ?? user.id}${Date.now().toString().slice(-8)}`; res.setHeader("Cache-Control", "no-store"); res.json(await caller.engine.stkPush({ phoneNumber: req.body.phoneNumber, amount: Number(req.body.amount), tillId: req.body.tillId ? Number(req.body.tillId) : undefined, accountReference, transactionDesc: req.body.transactionDesc })); }
-    catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "STK Push failed" }); }
+    catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "STK Push failed", status: "ERROR", final: true, webhookRequired: false, message: "The STK request was not accepted and no payment record was created. Correct the error and retry." }); }
   });
   app.post("/api/v1/callbacks/stk", async (req, res) => {
     if (req.query.callbackToken !== getStkCallbackToken()) return res.status(401).json({ ResultCode: 1, ResultDesc: "Unauthorized callback" });
@@ -53,7 +53,8 @@ export function registerRestRoutes(app: Express) {
       const paidPhoneNumber = metadata("PhoneNumber");
       const callbackSummary = `Safaricom callback ResultCode=${String(callback.ResultCode)}${callback.ResultDesc ? ` ResultDesc=${String(callback.ResultDesc)}` : ""}`;
       const failureReason = success ? null : rawReason ? explainStkResult(callback.ResultCode, rawReason) : `${callbackSummary}; raw callback=${JSON.stringify(callback)}`;
-      await updateStkCallback({ checkoutRequestId: String(callback.CheckoutRequestID), success, failureReason, receipt: typeof receipt === "string" || typeof receipt === "number" ? String(receipt) : null, paidAmount: Number.isFinite(paidAmount) ? paidAmount : null, paidPhoneNumber: paidPhoneNumber == null ? null : String(paidPhoneNumber) });
+      const callbackStatus = success ? "SUCCESS" : Number(callback.ResultCode) === 1032 ? "CANCELLED" : "FAILED";
+      await updateStkCallback({ checkoutRequestId: String(callback.CheckoutRequestID), success, status: callbackStatus, failureReason, receipt: typeof receipt === "string" || typeof receipt === "number" ? String(receipt) : null, paidAmount: Number.isFinite(paidAmount) ? paidAmount : null, paidPhoneNumber: paidPhoneNumber == null ? null : String(paidPhoneNumber) });
     })().catch((error) => console.error("STK callback processing failed", error));
   });
   app.post("/api/v1/callbacks/c2b/confirmation", async (req, res) => { const body = req.body ?? {}; res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" }); void recordC2bConfirmation({ tillNumber: String(body.BusinessShortCode ?? body.ShortCode ?? ""), transactionId: String(body.TransID ?? ""), amount: Number(body.TransAmount ?? 0), phoneNumber: String(body.MSISDN ?? ""), accountReference: String(body.BillRefNumber ?? body.InvoiceNumber ?? "") }).catch((error) => console.error("C2B confirmation processing failed", error)); });

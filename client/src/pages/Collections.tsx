@@ -7,9 +7,9 @@ import { useLocation, useSearch } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 
-type Collection = { id: string; reference: string; phone: string; amount: number; status: "Success" | "Pending" | "Failed"; channel: "STK Push" | "C2B"; accountReference: string; createdAt: string; tillNumber?: string };
+type Collection = { id: string; reference: string; phone: string; amount: number; status: "Success" | "Pending" | "Failed" | "Cancelled"; channel: "STK Push" | "C2B"; accountReference: string; createdAt: string; tillNumber?: string; failureReason?: string };
 
-function Status({ status }: { status: Collection["status"] }) { return <span className={`status-badge ${status === "Success" ? "success" : status === "Pending" ? "pending" : "failed"}`}><span className="status-dot" />{status}</span>; }
+function Status({ status }: { status: Collection["status"] }) { return <span className={`status-badge ${status === "Success" ? "success" : status === "Pending" ? "pending" : status === "Cancelled" ? "cancelled" : "failed"}`}><span className="status-dot" />{status}</span>; }
 function formatAmount(amount: number) { return `KES ${amount.toLocaleString("en-KE", { minimumFractionDigits: 2 })}`; }
 function normalizeKenyanPhone(value: string) {
   const digits = value.trim().replace(/[\s()-]/g, "").replace(/^\+/, "");
@@ -39,7 +39,7 @@ export default function Collections() {
   const stkPush = trpc.engine.stkPush.useMutation({ onSuccess: (result) => { refresh(); setModal(null); showToast(`STK prompt sent${result.till?.name ? ` to ${result.till.name}` : ""}. Request ${result.checkoutRequestId} is recorded as pending and will update after the callback.`); }, onError: (error) => showToast(error.message || "STK Push failed. Check the M-PESA configuration and try again.", "error") });
   const updateCollection = trpc.engine.updateCollection.useMutation({ onSuccess: () => { refresh(); setModal(null); showToast("Collection details updated"); }, onError: (error) => showToast(error.message || "Collection update failed.", "error") });
   const deleteCollection = trpc.engine.deleteCollection.useMutation({ onSuccess: () => { refresh(); showToast("Collection removed"); }, onError: (error) => showToast(error.message || "Collection removal failed.", "error") });
-  useEffect(() => { if (collections.data) setRows(collections.data.map((row) => ({ id: String(row.id), reference: String(row.checkoutRequestId ?? row.id), phone: String(row.phoneNumber ?? "—"), amount: Number(row.amount ?? 0), status: row.status === "SUCCESS" ? "Success" : row.status === "FAILED" ? "Failed" : "Pending", channel: String(row.checkoutRequestId ?? "").startsWith("C2B_") ? "C2B" : "STK Push", accountReference: String(row.accountReference ?? "—"), createdAt: new Date(String(row.createdAt)).toLocaleString("en-KE", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }), tillNumber: row.tillNumber ? String(row.tillNumber) : undefined }))); }, [collections.data]);
+  useEffect(() => { if (collections.data) setRows(collections.data.map((row) => ({ id: String(row.id), reference: String(row.checkoutRequestId ?? row.id), phone: String(row.phoneNumber ?? "—"), amount: Number(row.amount ?? 0), status: row.status === "SUCCESS" ? "Success" : row.status === "CANCELLED" ? "Cancelled" : row.status === "FAILED" ? "Failed" : "Pending", channel: String(row.checkoutRequestId ?? "").startsWith("C2B_") ? "C2B" : "STK Push", accountReference: String(row.accountReference ?? "—"), createdAt: new Date(String(row.createdAt)).toLocaleString("en-KE", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }), tillNumber: row.tillNumber ? String(row.tillNumber) : undefined, failureReason: row.failureReason ? String(row.failureReason) : undefined }))); }, [collections.data]);
   useEffect(() => {
     const params = new URLSearchParams(search);
     if (params.get("from") !== "payment-link") return;

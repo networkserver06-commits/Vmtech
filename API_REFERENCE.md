@@ -156,7 +156,7 @@ This endpoint returns the complete current history for the authenticated account
 }
 ```
 
-Possible collection statuses are `PENDING`, `SUCCESS`, and `FAILED`. Manual payout records use `MANUAL_REVIEW` until an administrator processes them outside the portal. Fulfill customer orders only after a collection is `SUCCESS` and the receipt has been validated.
+Possible collection statuses are `PENDING`, `SUCCESS`, `FAILED`, and `CANCELLED`. A cancelled record means the customer rejected or cancelled the prompt; the failure reason is retained in history. If the API request itself is rejected before Daraja accepts it, the API returns a structured `status: "ERROR"` response and `webhookRequired: false`. Webhooks are optional notifications, not the source of truth. Fulfill customer orders only after a collection is `SUCCESS` and the receipt has been validated.
 
 ## Manual portal payout ledger
 
