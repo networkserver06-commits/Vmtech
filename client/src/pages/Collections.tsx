@@ -44,6 +44,7 @@ export default function Collections() {
   const requestPayout = trpc.engine.requestPayout.useMutation({ onSuccess: () => { payoutRequests.refetch(); showToast("Payout request sent to the admin dashboard"); }, onError: (error) => showToast(error.message || "Payout request failed", "error") });
   const submitPayoutRequest = (row: Collection) => {
     if (row.status !== "Success") return showToast("Only successful collections can be requested for payout", "error");
+    if (row.amount < 50) return showToast("Minimum payout request is KES 50", "error");
     const destination = window.prompt("Enter payout destination: Kenyan phone number or Till/PayBill number");
     if (!destination?.trim()) return;
     const cleaned = destination.trim();
