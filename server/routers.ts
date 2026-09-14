@@ -5,7 +5,7 @@ import { getSessionCookieOptions } from "./_core/cookies.js";
 import { systemRouter } from "./_core/systemRouter.js";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc.js";
 import { isConfiguredAdminEmail } from "./_core/env.js";
-import { adjustWallet, calculatePlatformFee, createCollection, createPayout, createPayoutRequest, createPayoutRequestsForAll, createReservedPayout, createTill, createWebhook, deleteApiKey, deleteCollection, deletePayout, deleteTill, deleteWebhook, getAdminOverview, getOverviewData, getStoredMpesaConfig, getSystemSettings, getTill, getWalletBalance, insertApiKey, insertTransaction, insertWalletDeposit, listAdminPayoutRequests, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayoutRequests, listPayouts, listTills, listWalletDeposits, listWalletLedger, listWebhooks, revokeApiKey, saveMpesaConfig, setUserSuspended, testWebhook, updateCollection, updatePayout, updatePayoutRequestStatus, updateTill, updateUserProfile, writeAuditLog } from "./db.js";
+import { adjustWallet, calculatePlatformFee, createCollection, createPayout, createPayoutRequest, createPayoutRequestsForAll, createReservedPayout, createTill, createWebhook, deleteApiKey, deleteCollection, deletePayout, deleteTill, deleteWebhook, getAdminOverview, getOverviewData, getStoredMpesaConfig, getSystemSettings, getTill, getWalletBalance, insertApiKey, insertTransaction, insertWalletDeposit, listAdminPayoutRequests, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayoutRequests, listPayouts, listTills, listUserWalletLedger, listWalletDeposits, listWalletLedger, listWebhooks, revokeApiKey, saveMpesaConfig, setUserSuspended, testWebhook, updateCollection, updatePayout, updatePayoutRequestStatus, updateTill, updateUserProfile, writeAuditLog } from "./db.js";
 import { createSecurityCredential, encryptSecret, generateApiKey, generatePrefixedReference, getStkCallbackToken, hashApiKey } from "./security.js";
 import { encryptedConfigToDaraja, registerC2bUrls, triggerStkPush } from "./mpesa.js";
 
@@ -56,6 +56,7 @@ export const appRouter = router({
     overview: protectedProcedure.query(({ ctx }) => getOverviewData(ctx.user.id)),
     walletBalance: protectedProcedure.query(({ ctx }) => getWalletBalance(ctx.user.id)),
     listWalletDeposits: protectedProcedure.query(({ ctx }) => listWalletDeposits(ctx.user.id)),
+    listWalletLedger: protectedProcedure.query(({ ctx }) => listUserWalletLedger(ctx.user.id)),
     listCollections: protectedProcedure.query(({ ctx }) => listCollections(ctx.user.id)),
     listPayoutRequests: protectedProcedure.query(({ ctx }) => listPayoutRequests(ctx.user.id)),
     requestPayout: protectedProcedure.input(z.object({ transactionId: z.number().int().positive(), amount: payoutRequestAmountSchema, destinationType: z.enum(["PHONE", "TILL"]), destination: z.string().trim().min(5).max(20) })).mutation(async ({ ctx, input }) => {

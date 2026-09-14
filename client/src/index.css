@@ -662,3 +662,7 @@ html:not(.dark) .public-checkout-card { background: rgba(255,255,255,.94); box-s
 .payout-request-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-left: auto; }
 .payout-request-actions button { min-height: 28px; padding: 5px 9px; font-size: 10px; }
 .payout-request-actions small { color: var(--muted); font-size: 9px; }
+
+.wallet-charge-row .money-negative { color: var(--danger, #ef7d7d); }
+.wallet-charge-row small + small { margin-top: 3px; }
+@media (max-width: 680px) { .wallet-history-tabs { overflow-x: auto; } .wallet-history-tabs button { white-space: nowrap; } }
