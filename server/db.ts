@@ -116,6 +116,14 @@ export async function createPayoutRequest(input: { userId: number; transactionId
   const result = await db.execute({ sql: "INSERT INTO payoutRequests (userId, transactionId, amount, destinationType, destination) VALUES (?, ?, ?, ?, ?)", args: [input.userId, input.transactionId, Number(transaction.amount ?? input.amount).toFixed(2), input.destinationType, input.destination] });
   return { id: Number(result.lastInsertRowid ?? 0), status: "REQUESTED" };
 }
+export async function createPayoutRequestsForAll(input: { userId: number; destinationType: "PHONE" | "TILL"; destination: string }) {
+  const db = await getTurso(); if (!db) throw new Error("Database is not configured");
+  const result = await db.execute({ sql: "SELECT t.id, t.amount FROM transactions t WHERE t.userId = ? AND UPPER(t.status) = 'SUCCESS' AND CAST(t.amount AS REAL) >= 50 AND NOT EXISTS (SELECT 1 FROM payoutRequests pr WHERE pr.transactionId = t.id)", args: [input.userId] });
+  const eligible = asRows<TursoRow>(result);
+  if (!eligible.length) return { count: 0, totalAmount: 0 };
+  await db.batch(eligible.map((transaction) => ({ sql: "INSERT INTO payoutRequests (userId, transactionId, amount, destinationType, destination) VALUES (?, ?, ?, ?, ?)", args: [input.userId, Number(transaction.id), Number(transaction.amount).toFixed(2), input.destinationType, input.destination] })), "write");
+  return { count: eligible.length, totalAmount: eligible.reduce((sum, transaction) => sum + Number(transaction.amount ?? 0), 0) };
+}
 export async function listPayoutRequests(userId: number) { const result = await execute({ sql: "SELECT pr.*, u.email, u.name, t.accountReference, t.phoneNumber AS collectionPhone FROM payoutRequests pr JOIN users u ON u.id = pr.userId JOIN transactions t ON t.id = pr.transactionId WHERE pr.userId = ? ORDER BY datetime(pr.createdAt) DESC", args: [userId] }); return result ? asRows<TursoRow>(result) : []; }
 export async function listAdminPayoutRequests() { const result = await execute("SELECT pr.*, u.email, u.name, u.accountId, t.accountReference, t.phoneNumber AS collectionPhone FROM payoutRequests pr JOIN users u ON u.id = pr.userId JOIN transactions t ON t.id = pr.transactionId ORDER BY datetime(pr.createdAt) DESC LIMIT 200"); return result ? asRows<TursoRow>(result) : []; }
 export async function updatePayoutRequestStatus(id: number, status: "REVIEWING" | "APPROVED" | "REJECTED" | "PAID", adminNote?: string | null) { return execute({ sql: "UPDATE payoutRequests SET status = ?, adminNote = ?, updatedAt = ? WHERE id = ?", args: [status, adminNote ?? null, now(), id] }); }

@@ -5,7 +5,7 @@ import { getSessionCookieOptions } from "./_core/cookies.js";
 import { systemRouter } from "./_core/systemRouter.js";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc.js";
 import { isConfiguredAdminEmail } from "./_core/env.js";
-import { adjustWallet, calculatePlatformFee, createCollection, createPayout, createPayoutRequest, createReservedPayout, createTill, createWebhook, deleteApiKey, deleteCollection, deletePayout, deleteTill, deleteWebhook, getAdminOverview, getOverviewData, getStoredMpesaConfig, getSystemSettings, getTill, getWalletBalance, insertApiKey, insertTransaction, insertWalletDeposit, listAdminPayoutRequests, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayoutRequests, listPayouts, listTills, listWalletDeposits, listWalletLedger, listWebhooks, revokeApiKey, saveMpesaConfig, setUserSuspended, testWebhook, updateCollection, updatePayout, updatePayoutRequestStatus, updateTill, updateUserProfile, writeAuditLog } from "./db.js";
+import { adjustWallet, calculatePlatformFee, createCollection, createPayout, createPayoutRequest, createPayoutRequestsForAll, createReservedPayout, createTill, createWebhook, deleteApiKey, deleteCollection, deletePayout, deleteTill, deleteWebhook, getAdminOverview, getOverviewData, getStoredMpesaConfig, getSystemSettings, getTill, getWalletBalance, insertApiKey, insertTransaction, insertWalletDeposit, listAdminPayoutRequests, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayoutRequests, listPayouts, listTills, listWalletDeposits, listWalletLedger, listWebhooks, revokeApiKey, saveMpesaConfig, setUserSuspended, testWebhook, updateCollection, updatePayout, updatePayoutRequestStatus, updateTill, updateUserProfile, writeAuditLog } from "./db.js";
 import { createSecurityCredential, encryptSecret, generateApiKey, generatePrefixedReference, getStkCallbackToken, hashApiKey } from "./security.js";
 import { encryptedConfigToDaraja, registerC2bUrls, triggerStkPush } from "./mpesa.js";
 
@@ -61,6 +61,12 @@ export const appRouter = router({
     requestPayout: protectedProcedure.input(z.object({ transactionId: z.number().int().positive(), amount: payoutRequestAmountSchema, destinationType: z.enum(["PHONE", "TILL"]), destination: z.string().trim().min(5).max(20) })).mutation(async ({ ctx, input }) => {
       const result = await createPayoutRequest({ userId: ctx.user.id, ...input });
       await writeAuditLog({ userId: ctx.user.id, action: "PAYOUT_REQUESTED", details: { payoutRequestId: result.id, transactionId: input.transactionId, amount: input.amount, destinationType: input.destinationType, destination: input.destination, email: ctx.user.email } });
+      return result;
+    }),
+    requestPayoutForAll: protectedProcedure.input(z.object({ destinationType: z.enum(["PHONE", "TILL"]), destination: z.string().trim().min(5).max(20) })).mutation(async ({ ctx, input }) => {
+      const result = await createPayoutRequestsForAll({ userId: ctx.user.id, ...input });
+      if (!result.count) throw new TRPCError({ code: "BAD_REQUEST", message: "No eligible successful collections are available for payout. Collections must be successful, at least KES 50, and not already requested." });
+      await writeAuditLog({ userId: ctx.user.id, action: "PAYOUT_REQUESTED_FOR_ALL_COLLECTIONS", details: { ...input, count: result.count, totalAmount: result.totalAmount, email: ctx.user.email } });
       return result;
     }),
     createCollection: protectedProcedure.input(z.object({ phoneNumber: phoneSchema, amount: amountSchema, accountReference: z.string().regex(/^1/, "Reference must start with 1").max(64) })).mutation(({ ctx, input }) => createCollection({ userId: ctx.user.id, checkoutRequestId: `manual_${Date.now()}`, accountReference: input.accountReference, phoneNumber: input.phoneNumber, amount: input.amount })),
