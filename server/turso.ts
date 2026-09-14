@@ -13,7 +13,7 @@ const schemaStatements = [
   `CREATE TABLE IF NOT EXISTS apiKeys (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, name TEXT NOT NULL, keyPrefix TEXT NOT NULL DEFAULT 'sk_live_', keyHash TEXT NOT NULL UNIQUE, isActive INTEGER NOT NULL DEFAULT 1, lastUsedAt TEXT, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
   `CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, checkoutRequestId TEXT NOT NULL UNIQUE, merchantRequestId TEXT, mpesaReceipt TEXT, accountReference TEXT NOT NULL, phoneNumber TEXT NOT NULL, amount TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'PENDING', failureReason TEXT, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
   `CREATE TABLE IF NOT EXISTS payouts (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, recipientPhone TEXT NOT NULL, amount TEXT NOT NULL, commandId TEXT NOT NULL DEFAULT 'BusinessPayment', originatorConversationId TEXT UNIQUE, conversationId TEXT, mpesaReceipt TEXT, status TEXT NOT NULL DEFAULT 'PENDING', failureReason TEXT, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
-  `CREATE TABLE IF NOT EXISTS payoutRequests (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, transactionId INTEGER NOT NULL, amount TEXT NOT NULL, destinationType TEXT NOT NULL, destination TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'REQUESTED', adminNote TEXT, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+  `CREATE TABLE IF NOT EXISTS payoutRequests (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, transactionId INTEGER NOT NULL, amount TEXT NOT NULL, destinationType TEXT NOT NULL, destination TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'REQUESTED', adminNote TEXT, approvedAmount TEXT, settledAt TEXT, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
   `CREATE TABLE IF NOT EXISTS webhookEndpoints (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, url TEXT NOT NULL, secretEncrypted TEXT NOT NULL, isActive INTEGER NOT NULL DEFAULT 1, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
   `CREATE TABLE IF NOT EXISTS webhookLogs (id INTEGER PRIMARY KEY AUTOINCREMENT, webhookEndpointId INTEGER NOT NULL, statusCode INTEGER NOT NULL, payload TEXT NOT NULL, status TEXT NOT NULL, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
   `CREATE TABLE IF NOT EXISTS systemSettings (id INTEGER PRIMARY KEY AUTOINCREMENT, settingKey TEXT NOT NULL UNIQUE, value TEXT NOT NULL, description TEXT, updatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
@@ -45,6 +45,10 @@ export async function getTurso() {
       const tillNames = new Set(tillColumns.rows.map((row) => String((row as unknown as { name: string }).name)));
       const tillAdditions = [["paymentType", "TEXT NOT NULL DEFAULT 'BUY_GOODS'"], ["businessShortcode", "TEXT"]] as const;
       for (const [name, type] of tillAdditions) if (!tillNames.has(name)) await client!.execute(`ALTER TABLE tills ADD COLUMN ${name} ${type}`);
+      const payoutRequestColumns = await client!.execute("PRAGMA table_info(payoutRequests)");
+      const payoutRequestNames = new Set(payoutRequestColumns.rows.map((row) => String((row as unknown as { name: string }).name)));
+      const payoutRequestAdditions = [["approvedAmount", "TEXT"], ["settledAt", "TEXT"]] as const;
+      for (const [name, type] of payoutRequestAdditions) if (!payoutRequestNames.has(name)) await client!.execute(`ALTER TABLE payoutRequests ADD COLUMN ${name} ${type}`);
       await client!.execute("CREATE INDEX IF NOT EXISTS transactions_till_idx ON transactions(tillId)");
       await client!.execute("CREATE INDEX IF NOT EXISTS transactions_fee_idx ON transactions(feeChargedAt)");
     });

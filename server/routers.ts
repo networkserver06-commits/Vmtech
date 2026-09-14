@@ -167,6 +167,7 @@ export const appRouter = router({
     payoutRequests: adminProcedure.query(() => listAdminPayoutRequests()),
     updatePayoutRequest: adminProcedure.input(z.object({ id: z.number().int().positive(), status: z.enum(["APPROVED", "REJECTED"]), adminNote: z.string().trim().max(250).optional() })).mutation(async ({ ctx, input }) => {
       const result = await updatePayoutRequestStatus(input.id, input.status, input.adminNote ?? null);
+      if (Number(result?.rowsAffected ?? 0) !== 1) throw new TRPCError({ code: "CONFLICT", message: "This payout request has already received a final decision." });
       await writeAuditLog({ userId: ctx.user.id, action: input.status === "APPROVED" ? "APPROVE_PAYOUT_REQUEST" : "REJECT_PAYOUT_REQUEST", details: { payoutRequestId: input.id, adminNote: input.adminNote ?? null } });
       return result;
     }),
