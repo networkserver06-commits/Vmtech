@@ -4,7 +4,7 @@ let client: Client | null = null;
 let initialized: Promise<void> | null = null;
 
 const schemaStatements = [
-  `CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, openId TEXT NOT NULL UNIQUE, accountId TEXT UNIQUE, name TEXT, email TEXT, loginMethod TEXT, role TEXT NOT NULL DEFAULT 'user', isSuspended INTEGER NOT NULL DEFAULT 0, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, lastSignedIn TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+  `CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, openId TEXT NOT NULL UNIQUE, accountId TEXT UNIQUE, username TEXT UNIQUE, name TEXT, email TEXT, loginMethod TEXT, role TEXT NOT NULL DEFAULT 'user', isSuspended INTEGER NOT NULL DEFAULT 0, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, lastSignedIn TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
   `CREATE TABLE IF NOT EXISTS wallets (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL UNIQUE, balance TEXT NOT NULL DEFAULT '0.00', currency TEXT NOT NULL DEFAULT 'KES', updatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
   `CREATE TABLE IF NOT EXISTS walletTransactions (id INTEGER PRIMARY KEY AUTOINCREMENT, walletId INTEGER NOT NULL, amount TEXT NOT NULL, type TEXT NOT NULL, reference TEXT NOT NULL UNIQUE, description TEXT NOT NULL, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
   `CREATE TABLE IF NOT EXISTS walletDeposits (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, checkoutRequestId TEXT NOT NULL UNIQUE, merchantRequestId TEXT, phoneNumber TEXT NOT NULL, amount TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'PENDING', mpesaReceipt TEXT, failureReason TEXT, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, settledAt TEXT)`,
@@ -37,6 +37,14 @@ export async function getTurso() {
       const userNames = new Set(userColumns.rows.map((row) => String((row as unknown as { name: string }).name)));
       const userAdditions = [["passwordHash", "TEXT"], ["emailVerified", "INTEGER NOT NULL DEFAULT 0"]] as const;
       for (const [name, type] of userAdditions) if (!userNames.has(name)) await client!.execute(`ALTER TABLE users ADD COLUMN ${name} ${type}`);
+      if (!userNames.has("username")) await client!.execute("ALTER TABLE users ADD COLUMN username TEXT");
+      const usersToName = await client!.execute("SELECT id, accountId, name FROM users WHERE username IS NULL OR trim(username) = '' ORDER BY id ASC");
+      for (const row of usersToName.rows as unknown as Array<{ id: number; accountId: string | null; name: string | null }>) {
+        const base = (String(row.name ?? "user").trim().toLowerCase().split(/\s+/)[0] || "user").replace(/[^a-z0-9-]/g, "") || "user";
+        const username = `${base}-${String(row.accountId ?? row.id).toLowerCase()}`;
+        await client!.execute({ sql: "UPDATE users SET username = ? WHERE id = ? AND (username IS NULL OR trim(username) = '')", args: [username, Number(row.id)] });
+      }
+      await client!.execute("CREATE UNIQUE INDEX IF NOT EXISTS users_username_unique_idx ON users(username)");
       const transactionColumns = await client!.execute("PRAGMA table_info(transactions)");
       const transactionNames = new Set(transactionColumns.rows.map((row) => String((row as unknown as { name: string }).name)));
       const transactionAdditions = [["tillId", "INTEGER"], ["platformFee", "TEXT NOT NULL DEFAULT '0.00'"], ["netAmount", "TEXT"], ["feeChargedAt", "TEXT"]] as const;
@@ -49,6 +57,8 @@ export async function getTurso() {
       const payoutRequestNames = new Set(payoutRequestColumns.rows.map((row) => String((row as unknown as { name: string }).name)));
       const payoutRequestAdditions = [["approvedAmount", "TEXT"], ["settledAt", "TEXT"]] as const;
       for (const [name, type] of payoutRequestAdditions) if (!payoutRequestNames.has(name)) await client!.execute(`ALTER TABLE payoutRequests ADD COLUMN ${name} ${type}`);
+      await client!.execute("DELETE FROM payoutRequests WHERE id NOT IN (SELECT MIN(id) FROM payoutRequests GROUP BY transactionId)");
+      await client!.execute("CREATE UNIQUE INDEX IF NOT EXISTS payout_requests_transaction_unique_idx ON payoutRequests(transactionId)");
       await client!.execute("CREATE INDEX IF NOT EXISTS transactions_till_idx ON transactions(tillId)");
       await client!.execute("CREATE INDEX IF NOT EXISTS transactions_fee_idx ON transactions(feeChargedAt)");
     });

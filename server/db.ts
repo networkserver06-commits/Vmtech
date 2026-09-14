@@ -22,9 +22,15 @@ export async function upsertUser(user: { openId: string; accountId?: string | nu
     const max = asRows<TursoRow>(await db.execute("SELECT MAX(CAST(accountId AS INTEGER)) AS maxAccountId FROM users"))[0]?.maxAccountId;
     accountId = String(Number(max ?? 0) + 1);
   }
+  let username = existing?.username ? String(existing.username) : "";
+  if (!username) {
+    const base = (String(user.name ?? "user").trim().toLowerCase().split(/\s+/)[0] || "user").replace(/[^a-z0-9-]/g, "") || "user";
+    const candidate = `${base}-${String(accountId ?? "").toLowerCase()}`;
+    username = candidate;
+  }
   const signedIn = (user.lastSignedIn ?? new Date()).toISOString();
-  await db.execute({ sql: `INSERT INTO users (openId, accountId, name, email, loginMethod, role, lastSignedIn, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(openId) DO UPDATE SET accountId=excluded.accountId, name=excluded.name, email=excluded.email, loginMethod=excluded.loginMethod, role=excluded.role, lastSignedIn=excluded.lastSignedIn, updatedAt=excluded.updatedAt`, args: [user.openId, accountId ?? null, user.name ?? null, user.email ?? null, user.loginMethod ?? null, user.role ?? "user", signedIn, now()] });
+  await db.execute({ sql: `INSERT INTO users (openId, accountId, username, name, email, loginMethod, role, lastSignedIn, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(openId) DO UPDATE SET accountId=COALESCE(users.accountId, excluded.accountId), name=excluded.name, email=excluded.email, loginMethod=excluded.loginMethod, role=excluded.role, lastSignedIn=excluded.lastSignedIn, updatedAt=excluded.updatedAt`, args: [user.openId, accountId ?? null, username, user.name ?? null, user.email ?? null, user.loginMethod ?? null, user.role ?? "user", signedIn, now()] });
   const saved = asRows<TursoRow>(await db.execute({ sql: "SELECT id FROM users WHERE openId = ?", args: [user.openId] }))[0];
   if (saved) await db.execute({ sql: "INSERT OR IGNORE INTO wallets (userId) VALUES (?)", args: [Number(saved.id)] });
 }
@@ -43,9 +49,9 @@ export async function getUserById(id: number) {
 
 export async function getUserByPaymentSlug(slug: string) {
   const db = await getTurso(); if (!db) return undefined;
-  const normalized = slug.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const rows = asRows<TursoRow>(await db.execute({ sql: "SELECT * FROM users WHERE lower(replace(name, ' ', '')) = ? OR lower(name) LIKE ? ORDER BY id ASC", args: [normalized, `${normalized}%`] }));
-  const row = rows.find((candidate) => String(candidate.name ?? "").toLowerCase().split(/\s+/)[0].replace(/[^a-z0-9]/g, "") === normalized);
+  const normalized = slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
+  if (!normalized) return undefined;
+  const row = asRows<TursoRow>(await db.execute({ sql: "SELECT * FROM users WHERE lower(username) = ? AND isSuspended = 0 LIMIT 1", args: [normalized] }))[0];
   return row ? userFromRow(row) : undefined;
 }
 
@@ -113,7 +119,8 @@ export async function createPayoutRequest(input: { userId: number; transactionId
   const db = await getTurso(); if (!db) throw new Error("Database is not configured");
   const transaction = asRows<TursoRow>(await db.execute({ sql: "SELECT id, amount, status FROM transactions WHERE id = ? AND userId = ? LIMIT 1", args: [input.transactionId, input.userId] }))[0];
   if (!transaction || String(transaction.status).toUpperCase() !== "SUCCESS") throw new Error("Only successful collections can be requested for payout");
-  const result = await db.execute({ sql: "INSERT INTO payoutRequests (userId, transactionId, amount, destinationType, destination) VALUES (?, ?, ?, ?, ?)", args: [input.userId, input.transactionId, Number(transaction.amount ?? input.amount).toFixed(2), input.destinationType, input.destination] });
+  const result = await db.execute({ sql: "INSERT INTO payoutRequests (userId, transactionId, amount, destinationType, destination) SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM payoutRequests WHERE transactionId = ?)", args: [input.userId, input.transactionId, Number(transaction.amount ?? input.amount).toFixed(2), input.destinationType, input.destination, input.transactionId] });
+  if (Number(result.rowsAffected ?? 0) !== 1) throw new Error("This collection already has a payout request");
   return { id: Number(result.lastInsertRowid ?? 0), status: "REQUESTED" };
 }
 export async function createPayoutRequestsForAll(input: { userId: number; destinationType: "PHONE" | "TILL"; destination: string }) {
@@ -124,8 +131,8 @@ export async function createPayoutRequestsForAll(input: { userId: number; destin
   await db.batch(eligible.map((transaction) => ({ sql: "INSERT INTO payoutRequests (userId, transactionId, amount, destinationType, destination) VALUES (?, ?, ?, ?, ?)", args: [input.userId, Number(transaction.id), Number(transaction.amount).toFixed(2), input.destinationType, input.destination] })), "write");
   return { count: eligible.length, totalAmount: eligible.reduce((sum, transaction) => sum + Number(transaction.amount ?? 0), 0) };
 }
-export async function listPayoutRequests(userId: number) { const result = await execute({ sql: "SELECT pr.*, u.email, u.name, t.accountReference, t.phoneNumber AS collectionPhone FROM payoutRequests pr JOIN users u ON u.id = pr.userId JOIN transactions t ON t.id = pr.transactionId WHERE pr.userId = ? ORDER BY datetime(pr.createdAt) DESC", args: [userId] }); return result ? asRows<TursoRow>(result) : []; }
-export async function listAdminPayoutRequests() { const result = await execute("SELECT pr.*, u.email, u.name, u.accountId, t.accountReference, t.phoneNumber AS collectionPhone FROM payoutRequests pr JOIN users u ON u.id = pr.userId JOIN transactions t ON t.id = pr.transactionId ORDER BY datetime(pr.createdAt) DESC LIMIT 200"); return result ? asRows<TursoRow>(result) : []; }
+export async function listPayoutRequests(userId: number) { const result = await execute({ sql: "SELECT pr.*, u.email, u.name, t.accountReference, t.phoneNumber AS collectionPhone FROM payoutRequests pr JOIN users u ON u.id = pr.userId JOIN transactions t ON t.id = pr.transactionId AND t.userId = pr.userId WHERE pr.userId = ? ORDER BY datetime(pr.createdAt) DESC", args: [userId] }); return result ? asRows<TursoRow>(result) : []; }
+export async function listAdminPayoutRequests() { const result = await execute("SELECT pr.*, u.email, u.name, u.accountId, t.accountReference, t.phoneNumber AS collectionPhone FROM payoutRequests pr JOIN users u ON u.id = pr.userId JOIN transactions t ON t.id = pr.transactionId AND t.userId = pr.userId ORDER BY datetime(pr.createdAt) DESC LIMIT 200"); return result ? asRows<TursoRow>(result) : []; }
 export async function updatePayoutRequestStatus(id: number, status: "REVIEWING" | "APPROVED" | "REJECTED" | "PAID", adminNote?: string | null) {
   if (status === "APPROVED") return execute({ sql: "UPDATE payoutRequests SET status = 'APPROVED', approvedAmount = amount, settledAt = ?, adminNote = ?, updatedAt = ? WHERE id = ? AND status NOT IN ('APPROVED', 'PAID', 'REJECTED')", args: [now(), adminNote ?? null, now(), id] });
   return execute({ sql: "UPDATE payoutRequests SET status = ?, adminNote = ?, updatedAt = ? WHERE id = ? AND status NOT IN ('APPROVED', 'PAID', 'REJECTED')", args: [status, adminNote ?? null, now(), id] });

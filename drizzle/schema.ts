@@ -3,6 +3,7 @@ export type User = {
   openId: string;
   accountId: string | null;
   name: string | null;
+  username: string | null;
   email: string | null;
   loginMethod: string | null;
   passwordHash?: string | null;

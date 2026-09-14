@@ -260,7 +260,7 @@ export default function Home() {
     const reference = paymentLinkReference.trim() || `1LINK${Date.now().toString().slice(-8)}`;
     if (paymentLinkMode === "fixed" && (!amountText || !Number.isFinite(amount) || amount <= 0 || amount > 1500000)) return notify("Enter a fixed amount between KES 1 and KES 1,500,000", "error");
     if (!/^1[A-Za-z0-9_-]{1,63}$/.test(reference)) return notify("Reference must start with 1 and contain only letters, numbers, _ or -", "error");
-    const merchantSlug = (user?.name ?? "").trim().toLowerCase().split(/\s+/)[0].replace(/[^a-z0-9-]/g, "");
+    const merchantSlug = String(user?.username ?? "").trim().toLowerCase();
     if (!merchantSlug) return notify("Set a workspace username before generating a payment link", "error");
     const url = new URL(`/pay/${merchantSlug}`, window.location.origin);
     if (paymentLinkMode === "fixed") url.searchParams.set("amount", amount.toFixed(2));
