@@ -60,6 +60,7 @@ export async function updateUserProfile(userId: number, name: string) {
 }
 
 export async function getOverviewData(userId: number) {
+  await reconcileSuccessfulStkFees(userId);
   const db = await getTurso();
   if (!db) return { balance: 0, collections: 0, payouts: 0, successRate: 100, activeKeys: 0, accountId: "1", transactions: [] };
   const [wallet, collections, keys, recentCollections, mpesaConfig] = await Promise.all([
@@ -95,7 +96,18 @@ export async function recordC2bConfirmation(input: { tillNumber: string; transac
   if (Number(result?.rowsAffected ?? 0) === 1) void dispatchUserWebhooks(Number(till.userId), "payment.success", { transactionId: `C2B_${input.transactionId}`, accountReference: input.accountReference || input.transactionId, phoneNumber: input.phoneNumber, amount: input.amount, status: "SUCCESS", mpesaReceipt: input.transactionId, tillNumber: input.tillNumber }).catch((error) => console.error("C2B webhook dispatch failed", error));
   return result;
 }
-export async function listCollections(userId: number) { const result = await execute({ sql: "SELECT tr.*, ti.tillNumber, ti.name AS tillName FROM transactions tr LEFT JOIN tills ti ON ti.id = tr.tillId WHERE tr.userId = ? ORDER BY datetime(tr.createdAt) DESC", args: [userId] }); return result ? asRows<TursoRow>(result) : []; }
+export async function listCollections(userId: number) { await reconcileSuccessfulStkFees(userId); const result = await execute({ sql: "SELECT tr.*, ti.tillNumber, ti.name AS tillName FROM transactions tr LEFT JOIN tills ti ON ti.id = tr.tillId WHERE tr.userId = ? ORDER BY datetime(tr.createdAt) DESC", args: [userId] }); return result ? asRows<TursoRow>(result) : []; }
+async function reconcileSuccessfulStkFees(userId: number) {
+  const db = await getTurso(); if (!db) return;
+  const rows = asRows<TursoRow>(await db.execute({ sql: "SELECT id, amount FROM transactions WHERE userId = ? AND status = 'SUCCESS' AND checkoutRequestId NOT LIKE 'C2B_%' AND (feeChargedAt IS NULL OR platformFee IS NULL) ORDER BY id ASC LIMIT 200", args: [userId] }));
+  for (const row of rows) {
+    const amount = Number(row.amount ?? 0); const fee = calculatePlatformFee(amount); const net = Math.max(0, amount - fee); const reference = `STK_FEE_${String(row.id)}`;
+    const claimed = await db.execute({ sql: "UPDATE transactions SET platformFee = ?, netAmount = ?, feeChargedAt = ? WHERE id = ? AND userId = ? AND status = 'SUCCESS' AND feeChargedAt IS NULL", args: [fee.toFixed(2), net.toFixed(2), now(), Number(row.id), userId] });
+    if (Number(claimed.rowsAffected ?? 0) !== 1) continue;
+    await db.batch([{ sql: "INSERT OR IGNORE INTO wallets (userId, balance) VALUES (?, '0.00')", args: [userId] }, { sql: "UPDATE wallets SET balance = CAST(balance AS REAL) - ?, updatedAt = ? WHERE userId = ?", args: [fee.toFixed(2), now(), userId] }, { sql: "INSERT OR IGNORE INTO walletTransactions (walletId, amount, type, reference, description) SELECT id, ?, 'PLATFORM_FEE', ?, ? FROM wallets WHERE userId = ?", args: [(-fee).toFixed(2), reference, `Platform fee for STK Push transaction ${row.id}`, userId] }], "write");
+  }
+}
+export async function reconcileUserStkFees(userId: number) { await reconcileSuccessfulStkFees(userId); }
 export async function listTransactionHistory(userId: number) {
   const [collections, payouts, deposits] = await Promise.all([
     execute({ sql: "SELECT tr.*, ti.tillNumber, ti.name AS tillName FROM transactions tr LEFT JOIN tills ti ON ti.id = tr.tillId WHERE tr.userId = ?", args: [userId] }),

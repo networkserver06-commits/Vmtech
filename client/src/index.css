@@ -666,3 +666,6 @@ html:not(.dark) .public-checkout-card { background: rgba(255,255,255,.94); box-s
 .wallet-charge-row .money-negative { color: var(--danger, #ef7d7d); }
 .wallet-charge-row small + small { margin-top: 3px; }
 @media (max-width: 680px) { .wallet-history-tabs { overflow-x: auto; } .wallet-history-tabs button { white-space: nowrap; } }
+
+.collection-amount-cell, .activity-amount-cell { display: grid; gap: 2px; }
+.collection-amount-cell small, .activity-amount-cell small { color: var(--muted); font-size: 9px; white-space: nowrap; }
