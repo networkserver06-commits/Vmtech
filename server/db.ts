@@ -217,7 +217,7 @@ export async function dispatchUserWebhooks(userId: number, event: string, data: 
 }
 export async function authenticateApiKey(keyHash: string) { const result = await execute({ sql: "SELECT a.id AS apiKeyId, a.userId AS apiUserId, u.id, u.openId, u.accountId, u.name, u.email, u.loginMethod, u.passwordHash, u.emailVerified, u.role, u.isSuspended, u.createdAt, u.updatedAt, u.lastSignedIn FROM apiKeys a JOIN users u ON u.id = a.userId WHERE a.keyHash = ? AND a.isActive = 1 LIMIT 1", args: [keyHash] }); const row = result ? asRows<TursoRow>(result)[0] : undefined; return row ? { keyId: Number(row.apiKeyId), user: userFromRow(row) } : null; }
 export async function markApiKeyUsed(keyId: number) { return execute({ sql: "UPDATE apiKeys SET lastUsedAt = ? WHERE id = ?", args: [now(), keyId] }); }
-export function calculatePlatformFee(amount: number) { return amount <= 50 ? 1 : Math.round(amount * 0.015 * 100) / 100; }
+export function calculatePlatformFee(amount: number) { return amount >= 1 && amount <= 50 ? 1 : Math.round(amount * 0.015 * 100) / 100; }
 export async function updateStkCallback(input: { checkoutRequestId: string; success: boolean; status?: "SUCCESS" | "FAILED" | "CANCELLED"; failureReason?: string | null; receipt?: string | null; paidAmount?: number | null; paidPhoneNumber?: string | null }) {
   const db = await getTurso(); if (!db) return null;
   const deposit = asRows<TursoRow>(await db.execute({ sql: "SELECT id, userId, amount, phoneNumber, status FROM walletDeposits WHERE checkoutRequestId = ? LIMIT 1", args: [input.checkoutRequestId] }))[0];
