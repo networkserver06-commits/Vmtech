@@ -85,6 +85,14 @@ export async function loginWithEmail(email: string, password: string) {
   return createSession(Number(row.id));
 }
 
+export async function changePassword(userId: number, currentPassword: string, newPassword: string) {
+  const db = await getTurso(); if (!db) throw new Error("Turso is not configured");
+  const row = asRows<TursoRow>(await db.execute({ sql: "SELECT passwordHash FROM users WHERE id = ? LIMIT 1", args: [userId] }))[0];
+  if (!row?.passwordHash || !(await verifyPassword(currentPassword, String(row.passwordHash)))) throw new Error("Current password is incorrect");
+  await db.execute({ sql: "UPDATE users SET passwordHash = ?, updatedAt = ? WHERE id = ?", args: [await hashPassword(newPassword), new Date().toISOString(), userId] });
+  return { success: true };
+}
+
 export async function createSession(userId: number) {
   return new SignJWT({ userId }).setProtectedHeader({ alg: "HS256", typ: "JWT" }).setIssuedAt().setExpirationTime("1y").sign(sessionKey());
 }

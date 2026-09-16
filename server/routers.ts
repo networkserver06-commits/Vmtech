@@ -8,6 +8,7 @@ import { isConfiguredAdminEmail } from "./_core/env.js";
 import { adjustWallet, calculatePlatformFee, createCollection, createPayout, createPayoutRequest, createPayoutRequestsForAll, createReservedPayout, createTill, createWebhook, deleteApiKey, deleteCollection, deletePayout, deleteTill, deleteWebhook, getAdminOverview, getOverviewData, getStoredMpesaConfig, getSystemSettings, getTill, getWalletBalance, insertApiKey, insertTransaction, insertWalletDeposit, listAdminPayoutRequests, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayoutRequests, listPayouts, listTills, listUserWalletLedger, listWalletDeposits, listWalletLedger, listWebhooks, revokeApiKey, saveMpesaConfig, setUserSuspended, testWebhook, updateCollection, updatePayout, updatePayoutRequestStatus, updateTill, updateUserProfile, writeAuditLog } from "./db.js";
 import { createSecurityCredential, encryptSecret, generateApiKey, generatePrefixedReference, getStkCallbackToken, hashApiKey } from "./security.js";
 import { encryptedConfigToDaraja, registerC2bUrls, triggerStkPush } from "./mpesa.js";
+import { changePassword } from "./emailAuth.js";
 
 /** Convert common Kenyan mobile formats to the Daraja-required 254XXXXXXXXX format. */
 export function normalizeKenyanPhone(value: string): string {
@@ -46,6 +47,7 @@ export const appRouter = router({
   auth: router({
     me: publicProcedure.query((opts) => opts.ctx.user),
     updateProfile: protectedProcedure.input(z.object({ name: z.string().trim().min(2).max(80) })).mutation(async ({ ctx, input }) => { await updateUserProfile(ctx.user.id, input.name); return { success: true, name: input.name }; }),
+    changePassword: protectedProcedure.input(z.object({ currentPassword: z.string().min(1), newPassword: z.string().min(8).regex(/[A-Z]/, "Password must include an uppercase letter").regex(/\d/, "Password must include a number") })).mutation(({ ctx, input }) => changePassword(ctx.user.id, input.currentPassword, input.newPassword)),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
