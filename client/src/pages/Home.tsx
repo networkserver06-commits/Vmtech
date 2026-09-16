@@ -70,7 +70,7 @@ function money(value: number) { return `KES ${value.toLocaleString("en-KE", { mi
 function parseServerDate(value: unknown) {
   const raw = String(value ?? "").trim();
   if (!raw) return new Date(NaN);
-  // SQLite/Turso returns UTC timestamps without an offset; make that explicit
+  // Server timestamps may omit an offset; make UTC explicit
   // so browsers in EAT or any other timezone do not shift them by local hours.
   const utcValue = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(raw) ? `${raw.replace(" ", "T")}Z` : raw;
   return new Date(utcValue);

@@ -683,3 +683,5 @@ html:not(.dark) .public-checkout-card { background: rgba(255,255,255,.94); box-s
 .password-settings-section > div:first-child span { color: var(--muted); font-size: 10px; line-height: 1.4; }
 .password-settings-section .profile-form { margin-top: 0; }
 .password-settings-section > button { justify-self: start; }
+
+.landing-footer small { grid-column: 1 / -1; color: var(--muted-2); font-size: 10px; letter-spacing: .01em; }
