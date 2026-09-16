@@ -721,3 +721,15 @@ html:not(.dark) .public-checkout-card { background: rgba(255,255,255,.94); box-s
 .login-card-upgraded .login-switch { display: block; width: 100%; margin-top: 12px; padding: 7px; color: var(--text); font-size: 11px; font-weight: 600; }
 .login-card-upgraded .login-switch:hover { color: var(--lime); }
 @media (max-width: 450px) { .auth-home-link { margin-bottom: 20px; } .auth-mode-label { font-size: 7px; } }
+
+/* Shared mobile polish for authenticated pages and long-form documentation. */
+@media (max-width: 760px) {
+  .content-wrap, .workspace-content, .admin-content { padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
+  .crud-modal { max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain; }
+  .settings-card-heading, .admin-panel-heading, .modal-heading { min-width: 0; }
+  .settings-card-heading > div:last-child, .admin-panel-heading > div:first-child, .modal-heading > div:first-child { min-width: 0; }
+  .settings-card-heading h2, .admin-panel-heading h2, .modal-heading h2 { overflow-wrap: anywhere; }
+  .code-block { align-items: flex-start; }
+  .code-block code, .code-block pre { min-width: 0; max-width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+  .code-block button { flex: 0 0 auto; }
+}
