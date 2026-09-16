@@ -737,3 +737,31 @@ html:not(.dark) .public-checkout-card { background: rgba(255,255,255,.94); box-s
 .feature-link { border: 0; padding: 0; background: transparent; cursor: pointer; font: inherit; text-align: left; }
 .feature-link:focus-visible { border-radius: 4px; outline: 2px solid var(--lime); outline-offset: 4px; }
 @media (max-width: 560px) { .feature-link { min-height: 32px; } }
+
+/* Documentation mobile readability pass. */
+@media (max-width: 560px) {
+  .content-wrap { padding-left: 14px; padding-right: 14px; }
+  .page-heading { align-items: stretch; gap: 16px; }
+  .page-heading h1 { font-size: 24px; letter-spacing: -.8px; }
+  .page-heading p { max-width: none; line-height: 1.55; }
+  .heading-actions, .heading-actions button { width: 100%; }
+  .hero-strip { align-items: stretch; }
+  .hero-copy { padding: 20px; max-width: none; }
+  .hero-copy h2 { font-size: 20px; line-height: 1.15; }
+  .hero-art { display: none; }
+  .settings-grid { gap: 10px; }
+  .settings-card, .admin-panel { padding: 16px; }
+  .doc-detail-list > div { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .doc-detail-list span, .doc-detail-list strong { width: 100%; text-align: left; overflow-wrap: anywhere; word-break: break-word; }
+  .doc-detail-list strong { color: #dce8e6; line-height: 1.45; }
+  .settings-note { align-items: flex-start; line-height: 1.55; }
+  .settings-note code { overflow-wrap: anywhere; word-break: break-word; }
+  .docs-code-block { align-items: stretch; flex-direction: column; gap: 10px; }
+  .docs-code-block code { display: block; width: 100%; font-size: 9px; line-height: 1.55; }
+  .docs-code-block .icon-button { align-self: flex-end; min-width: 34px; min-height: 30px; }
+  .docs-endpoint { grid-template-columns: 1fr auto; gap: 7px; padding: 12px; }
+  .docs-endpoint code { grid-column: 1 / -1; grid-row: 2; line-height: 1.45; }
+  .docs-endpoint > span:nth-child(3) { grid-column: 1 / -1; grid-row: 3; line-height: 1.5; }
+  .admin-panel .modal-actions { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .admin-panel .modal-actions button { width: 100%; min-height: 42px; }
+}
