@@ -45,9 +45,8 @@ export async function registerWithEmail(input: { email: string; password: string
   await db.execute({ sql: "UPDATE users SET passwordHash = ?, emailVerified = 0 WHERE id = ?", args: [passwordHash, userId] });
   const rawToken = randomBytes(32).toString("base64url");
   await db.execute({ sql: "INSERT INTO emailVerificationTokens (userId, tokenHash, expiresAt) VALUES (?, ?, ?)", args: [userId, hashToken(rawToken), new Date(Date.now() + 30 * 60 * 1000).toISOString()] });
-  // Verification remains available, but it must not block account access.
-  // Email delivery is best-effort so a missing email provider does not make
-  // registration fail after the user has already been created.
+  // Create the account and require email verification before first sign-in.
+  // Delivery remains best-effort so the user can retry from the login screen.
   let verificationSent = false;
   try { await sendVerificationEmail(email, rawToken); verificationSent = true; } catch { /* account creation remains successful; the user can retry from the login screen */ }
   return { email, requiresVerification: true, verificationSent, verificationAvailable: true };
@@ -77,6 +76,7 @@ export async function loginWithEmail(email: string, password: string) {
   const db = await getTurso(); if (!db) throw new Error("Turso is not configured");
   const row = asRows<TursoRow>(await db.execute({ sql: "SELECT * FROM users WHERE lower(email) = ? LIMIT 1", args: [email.trim().toLowerCase()] }))[0];
   if (!row || !row.passwordHash || !(await verifyPassword(password, String(row.passwordHash)))) throw new Error("Invalid email or password");
+  if (!Boolean(row.emailVerified)) throw new Error("Please verify your email before signing in. Check your inbox or resend the verification email.");
   if (Boolean(row.isSuspended)) throw new Error("This account is suspended");
   await db.execute({ sql: "UPDATE users SET lastSignedIn = ?, updatedAt = ? WHERE id = ?", args: [new Date().toISOString(), new Date().toISOString(), Number(row.id)] });
   return createSession(Number(row.id));
