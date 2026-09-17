@@ -8,6 +8,7 @@ import type { Request, Response } from "express";
 import { parse as parseCookieHeader } from "cookie";
 import { COOKIE_NAME, ONE_YEAR_MS } from "../shared/const.js";
 import { isConfiguredAdminEmail } from "./_core/env.js";
+import { sendVerificationEmail } from "./email.js";
 
 const scrypt = promisify(scryptCallback);
 const sessionKey = () => {
@@ -29,20 +30,6 @@ export async function verifyPassword(password: string, stored: string) {
   const derived = await scrypt(password, salt, 64) as Buffer;
   const expected = Buffer.from(hash, "hex");
   return expected.length === derived.length && timingSafeEqual(expected, derived);
-}
-
-async function sendVerificationEmail(email: string, token: string) {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-  const from = process.env.RESEND_FROM_EMAIL?.trim();
-  if (!apiKey || !from) throw new Error("Email verification is not configured. Add RESEND_API_KEY and RESEND_FROM_EMAIL.");
-  const appUrl = (process.env.APP_URL?.trim() || "https://leetec.online").replace(/\/$/, "");
-  const verificationUrl = `${appUrl}/api/auth/verify?token=${encodeURIComponent(token)}`;
-  const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ from, to: [email], subject: "Verify your LeeTec Engine email", html: `<p>Welcome to LeeTec Engine.</p><p><a href="${verificationUrl}">Verify your email address</a></p><p>This link expires in 30 minutes.</p>` }) });
-  if (!response.ok) {
-    let providerMessage = "";
-    try { const body = await response.json() as { message?: string; name?: string }; providerMessage = body.message || body.name || ""; } catch { /* keep the stable application error */ }
-    throw new Error(providerMessage ? `Unable to send verification email: ${providerMessage}` : "Unable to send verification email");
-  }
 }
 
 export async function registerWithEmail(input: { email: string; password: string; name: string }) {
