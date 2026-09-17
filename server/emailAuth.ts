@@ -10,7 +10,11 @@ import { COOKIE_NAME, ONE_YEAR_MS } from "../shared/const.js";
 import { isConfiguredAdminEmail } from "./_core/env.js";
 
 const scrypt = promisify(scryptCallback);
-const sessionKey = () => new TextEncoder().encode(process.env.JWT_SECRET || "change-this-session-secret");
+const sessionKey = () => {
+  const secret = process.env.JWT_SECRET?.trim();
+  if (!secret || secret.length < 32) throw new Error("JWT_SECRET must be configured with at least 32 characters");
+  return new TextEncoder().encode(secret);
+};
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
 export async function hashPassword(password: string) {
@@ -28,12 +32,17 @@ export async function verifyPassword(password: string, stored: string) {
 }
 
 async function sendVerificationEmail(email: string, token: string) {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM_EMAIL;
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  const from = process.env.RESEND_FROM_EMAIL?.trim();
   if (!apiKey || !from) throw new Error("Email verification is not configured. Add RESEND_API_KEY and RESEND_FROM_EMAIL.");
-  const appUrl = process.env.APP_URL || "https://www.leetec.online";
-  const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ from, to: [email], subject: "Verify your LeeTec Engine email", html: `<p>Welcome to LeeTec Engine.</p><p><a href="${appUrl}/api/auth/verify?token=${encodeURIComponent(token)}">Verify your email address</a></p><p>This link expires in 30 minutes.</p>` }) });
-  if (!response.ok) throw new Error("Unable to send verification email");
+  const appUrl = (process.env.APP_URL?.trim() || "https://leetec.online").replace(/\/$/, "");
+  const verificationUrl = `${appUrl}/api/auth/verify?token=${encodeURIComponent(token)}`;
+  const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ from, to: [email], subject: "Verify your LeeTec Engine email", html: `<p>Welcome to LeeTec Engine.</p><p><a href="${verificationUrl}">Verify your email address</a></p><p>This link expires in 30 minutes.</p>` }) });
+  if (!response.ok) {
+    let providerMessage = "";
+    try { const body = await response.json() as { message?: string; name?: string }; providerMessage = body.message || body.name || ""; } catch { /* keep the stable application error */ }
+    throw new Error(providerMessage ? `Unable to send verification email: ${providerMessage}` : "Unable to send verification email");
+  }
 }
 
 export async function registerWithEmail(input: { email: string; password: string; name: string }) {
@@ -52,8 +61,9 @@ export async function registerWithEmail(input: { email: string; password: string
   // Verification remains available, but it must not block account access.
   // Email delivery is best-effort so a missing email provider does not make
   // registration fail after the user has already been created.
-  try { await sendVerificationEmail(email, rawToken); } catch { /* optional verification */ }
-  return { email, requiresVerification: false, verificationAvailable: true };
+  let verificationSent = false;
+  try { await sendVerificationEmail(email, rawToken); verificationSent = true; } catch { /* account creation remains successful; the user can retry from the login screen */ }
+  return { email, requiresVerification: true, verificationSent, verificationAvailable: true };
 }
 
 export async function resendVerificationEmail(emailInput: string) {
