@@ -30,6 +30,7 @@ export default function Login() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("mode") === "register") setMode("register");
     if (params.get("verified") === "1") setNotice("Email verified successfully.");
+    if (params.get("reset") === "1") setNotice("Password changed successfully. Sign in with your new password.");
     if (params.get("verified") === "0") setError("That verification link is invalid or expired.");
   }, []);
 

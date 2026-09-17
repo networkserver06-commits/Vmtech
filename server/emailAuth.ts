@@ -83,8 +83,10 @@ export async function resetPasswordWithToken(tokenInput: string, newPassword: st
   if (!token) throw new Error("This password reset link is invalid or expired.");
   const row = asRows<TursoRow>(await db.execute({ sql: "SELECT id, userId, expiresAt, usedAt FROM passwordResetTokens WHERE tokenHash = ? LIMIT 1", args: [hashToken(token)] }))[0];
   if (!row || row.usedAt || new Date(String(row.expiresAt)).getTime() <= Date.now()) throw new Error("This password reset link is invalid or expired.");
-  await db.execute({ sql: "UPDATE users SET passwordHash = ?, updatedAt = ? WHERE id = ?", args: [await hashPassword(newPassword), new Date().toISOString(), Number(row.userId)] });
-  await db.execute({ sql: "UPDATE passwordResetTokens SET usedAt = ? WHERE id = ?", args: [new Date().toISOString(), Number(row.id)] });
+  const updatedAt = new Date().toISOString();
+  const passwordHash = await hashPassword(newPassword);
+  const results = await db.batch([{ sql: "UPDATE users SET passwordHash = ?, updatedAt = ? WHERE id = ?", args: [passwordHash, updatedAt, Number(row.userId)] }, { sql: "UPDATE passwordResetTokens SET usedAt = ? WHERE id = ? AND usedAt IS NULL", args: [updatedAt, Number(row.id)] }], "write");
+  if (Number(results[0]?.rowsAffected ?? 0) !== 1 || Number(results[1]?.rowsAffected ?? 0) !== 1) throw new Error("This password reset link is invalid or expired.");
   return { success: true };
 }
 
