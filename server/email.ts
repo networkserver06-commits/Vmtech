@@ -2,6 +2,13 @@ import { ENV } from "./_core/env.js";
 
 const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character] ?? character);
 const appUrl = () => (ENV.appUrl.trim() || "https://leetec.online").replace(/\/$/, "");
+export function normalizeResendFrom(value: string) {
+  const raw = value.trim().replace(/^(["'])(.*)\1$/, "$2").replace(/\s+/g, " ");
+  const named = raw.match(/^(.+?)\s*<([^<>\s]+@[^<>\s]+)>$/);
+  if (named) return `${named[1].replace(/[<>]/g, "").trim()} <${named[2].trim().toLowerCase()}>`;
+  if (/^[^<>\s]+@[^<>\s]+$/.test(raw)) return raw.toLowerCase();
+  throw new Error("RESEND_FROM_EMAIL must be an email or Name <email> address, for example LeeTec <noreply@leetec.online>.");
+}
 
 function brandedEmail(title: string, preheader: string, content: string) {
   return `<!doctype html><html><head><meta name="color-scheme" content="dark light"><meta name="supported-color-schemes" content="dark light"></head><body style="margin:0;background:#0b1117;color:#eef2f4;font-family:Arial,Helvetica,sans-serif"><div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(preheader)}</div><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#0b1117"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;border:1px solid #26343d;border-radius:16px;overflow:hidden;background:#101820"><tr><td style="padding:24px 28px;background:linear-gradient(135deg,#1e321f,#101820);border-bottom:1px solid #33443a"><div style="font-size:18px;font-weight:700;color:#f6f8f6"><span style="display:inline-block;padding:6px 8px;border-radius:8px;background:#c5f56e;color:#17200f;margin-right:8px">⚡</span>LeeTec <span style="color:#9aa8ad;font-weight:400">Engine</span></div><div style="margin-top:8px;color:#a7c56c;font-size:11px;letter-spacing:1.4px;text-transform:uppercase">Secure M-PESA infrastructure</div></td></tr><tr><td style="padding:30px 28px"><h1 style="margin:0 0 14px;color:#f1f5f4;font-size:26px;line-height:1.2">${title}</h1>${content}</td></tr><tr><td style="padding:18px 28px;border-top:1px solid #26343d;color:#71818a;font-size:11px;line-height:1.6">Powered by <strong style="color:#c5f56e">LeeTec Engine</strong><br>Secure payment operations for modern businesses.<br><a href="mailto:leetec.online@gmail.com" style="color:#c5f56e;text-decoration:none">Support: leetec.online@gmail.com</a></td></tr></table></td></tr></table></body></html>`;
@@ -19,8 +26,9 @@ export function buildPayoutAdminEmail(input: { userName: string; userEmail: stri
 
 async function sendResendEmail(input: { to: string[]; subject: string; html: string }) {
   const apiKey = ENV.resendApiKey.trim();
-  const from = ENV.resendFromEmail.trim();
-  if (!apiKey || !from) throw new Error("Email delivery is not configured. Add RESEND_API_KEY and RESEND_FROM_EMAIL.");
+  const rawFrom = ENV.resendFromEmail.trim();
+  if (!apiKey || !rawFrom) throw new Error("Email delivery is not configured. Add RESEND_API_KEY and RESEND_FROM_EMAIL.");
+  const from = normalizeResendFrom(rawFrom);
   const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ from, to: input.to, subject: input.subject, html: input.html }) });
   if (!response.ok) {
     let providerMessage = "";

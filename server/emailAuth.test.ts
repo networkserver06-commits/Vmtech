@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { hashPassword, verifyPassword } from "./emailAuth.js";
-import { buildPayoutAdminEmail, buildPayoutUserEmail, buildVerificationEmail } from "./email.js";
+import { buildPayoutAdminEmail, buildPayoutUserEmail, buildVerificationEmail, normalizeResendFrom } from "./email.js";
 
 describe("email authentication", () => {
   it("hashes and verifies passwords", async () => {
@@ -39,5 +39,11 @@ describe("email authentication", () => {
     expect(html).toContain("KES 2,500.00");
     expect(html).toContain("PHONE · 254712345678");
     expect(html).toContain("received for processing");
+  });
+
+  it("normalizes a Resend display-name sender", () => {
+    expect(normalizeResendFrom("LEE TECH <noreply@leetec.online>")).toBe("LEE TECH <noreply@leetec.online>");
+    expect(normalizeResendFrom('"LEE TECH <NOREPLY@LEETEC.ONLINE>"')).toBe("LEE TECH <noreply@leetec.online>");
+    expect(() => normalizeResendFrom("LEE TECH")).toThrow("RESEND_FROM_EMAIL");
   });
 });
