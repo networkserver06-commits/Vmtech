@@ -11,12 +11,16 @@ import Login from "./pages/Login";
 import Landing from "./pages/Landing";
 import Documentation from "@/pages/Documentation";
 import PaymentLinkCheckout from "@/pages/PaymentLinkCheckout";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Landing} />
       <Route path="/login" component={Login} />
+      <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/reset-password" component={ResetPassword} />
       <Route path="/dashboard" component={Home} />
       <Route path="/admin" component={Admin} />
       <Route path="/collections" component={Collections} />

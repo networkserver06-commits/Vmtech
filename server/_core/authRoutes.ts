@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from "express";
-import { clearSessionCookie, loginWithEmail, registerWithEmail, resendVerificationEmail, setSessionCookie, verifyEmail } from "../emailAuth.js";
+import { clearSessionCookie, loginWithEmail, registerWithEmail, requestPasswordReset, resendVerificationEmail, resetPasswordWithToken, setSessionCookie, verifyEmail } from "../emailAuth.js";
 
 export function registerAuthRoutes(app: Express) {
   app.post("/api/auth/register", async (req: Request, res: Response) => {
@@ -26,6 +26,21 @@ export function registerAuthRoutes(app: Express) {
       if (typeof email !== "string" || !/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ error: "A valid email is required" });
       res.json(await resendVerificationEmail(email));
     } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "Unable to resend verification email" }); }
+  });
+  app.post("/api/auth/forgot-password", async (req: Request, res: Response) => {
+    try {
+      const { email } = req.body ?? {};
+      if (typeof email !== "string" || !/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ error: "A valid email is required" });
+      res.json(await requestPasswordReset(email));
+    } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "Unable to process password reset" }); }
+  });
+  app.post("/api/auth/reset-password", async (req: Request, res: Response) => {
+    try {
+      const { token, password } = req.body ?? {};
+      if (typeof token !== "string" || !token) return res.status(400).json({ error: "A password reset token is required" });
+      if (typeof password !== "string" || password.length < 8 || !/[A-Z]/.test(password) || !/\d/.test(password)) return res.status(400).json({ error: "Password must be at least 8 characters and include an uppercase letter and a number" });
+      res.json(await resetPasswordWithToken(token, password));
+    } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "Unable to reset password" }); }
   });
   app.get("/api/auth/verify", async (req: Request, res: Response) => {
     try { await verifyEmail(typeof req.query.token === "string" ? req.query.token : ""); res.redirect("/login?verified=1"); }

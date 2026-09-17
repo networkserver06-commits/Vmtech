@@ -19,6 +19,7 @@ const schemaStatements = [
   `CREATE TABLE IF NOT EXISTS systemSettings (id INTEGER PRIMARY KEY AUTOINCREMENT, settingKey TEXT NOT NULL UNIQUE, value TEXT NOT NULL, description TEXT, updatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
   `CREATE TABLE IF NOT EXISTS auditLogs (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, action TEXT NOT NULL, details TEXT NOT NULL, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
   `CREATE TABLE IF NOT EXISTS emailVerificationTokens (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, tokenHash TEXT NOT NULL UNIQUE, expiresAt TEXT NOT NULL, usedAt TEXT, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+  `CREATE TABLE IF NOT EXISTS passwordResetTokens (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, tokenHash TEXT NOT NULL UNIQUE, expiresAt TEXT NOT NULL, usedAt TEXT, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
   `CREATE INDEX IF NOT EXISTS users_account_idx ON users(accountId)`,
   `CREATE INDEX IF NOT EXISTS transactions_user_idx ON transactions(userId)`,
   `CREATE INDEX IF NOT EXISTS wallet_deposits_user_idx ON walletDeposits(userId)`,
@@ -26,6 +27,7 @@ const schemaStatements = [
   `CREATE INDEX IF NOT EXISTS payout_requests_user_idx ON payoutRequests(userId)`,
   `CREATE INDEX IF NOT EXISTS api_keys_user_idx ON apiKeys(userId)`,
   `CREATE INDEX IF NOT EXISTS audit_logs_user_idx ON auditLogs(userId)`,
+  `CREATE INDEX IF NOT EXISTS password_reset_tokens_user_idx ON passwordResetTokens(userId)`,
   `CREATE INDEX IF NOT EXISTS tills_user_idx ON tills(userId)`,
 ];
 

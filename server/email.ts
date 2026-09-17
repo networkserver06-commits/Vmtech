@@ -19,6 +19,11 @@ export function buildVerificationEmail(token: string) {
   return brandedEmail("Verify your email address", "Confirm your LeeTec Engine email address to secure your workspace.", `<p style="margin:0 0 18px;color:#aab8bd;font-size:15px;line-height:1.7">Welcome to LeeTec Engine. Confirm your email to keep your workspace account secure.</p><p style="margin:0 0 24px"><a href="${verificationUrl}" style="display:inline-block;padding:13px 20px;border-radius:8px;background:#c5f56e;color:#17200f;text-decoration:none;font-weight:700;font-size:14px">Verify email address</a></p><p style="margin:0;color:#71818a;font-size:12px;line-height:1.6">This verification link expires in 30 minutes. If you did not create this account, you can safely ignore this message.</p>`);
 }
 
+export function buildPasswordResetEmail(token: string) {
+  const resetUrl = `${appUrl()}/reset-password?token=${encodeURIComponent(token)}`;
+  return brandedEmail("Reset your LeeTec password", "Securely reset your LeeTec Engine workspace password.", `<p style="margin:0 0 18px;color:#aab8bd;font-size:15px;line-height:1.7">We received a request to reset your LeeTec Engine password.</p><p style="margin:0 0 24px"><a href="${resetUrl}" style="display:inline-block;padding:13px 20px;border-radius:8px;background:#c5f56e;color:#17200f;text-decoration:none;font-weight:700;font-size:14px">Reset password</a></p><p style="margin:0;color:#71818a;font-size:12px;line-height:1.6">This secure link expires in 30 minutes and can be used only once. If you did not request a reset, you can safely ignore this email.</p>`);
+}
+
 export function buildPayoutAdminEmail(input: { userName: string; userEmail: string; amount: number; destinationType: string; destination: string; requestCount?: number }) {
   const countLabel = input.requestCount && input.requestCount > 1 ? `${input.requestCount} payout requests` : "Payout request";
   return brandedEmail("New payout request", `${countLabel} submitted by ${input.userName}.`, `<p style="margin:0 0 18px;color:#aab8bd;font-size:15px;line-height:1.7">A customer has requested a payout and it is ready for admin review.</p><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #2a3a43;border-radius:10px;background:#141e27"><tr><td style="padding:12px 14px;color:#82939b;font-size:12px">Customer</td><td style="padding:12px 14px;color:#eef2f4;font-size:12px;text-align:right">${escapeHtml(input.userName)}</td></tr><tr><td style="padding:12px 14px;color:#82939b;font-size:12px">Email</td><td style="padding:12px 14px;color:#eef2f4;font-size:12px;text-align:right">${escapeHtml(input.userEmail)}</td></tr><tr><td style="padding:12px 14px;color:#82939b;font-size:12px">Amount</td><td style="padding:12px 14px;color:#c5f56e;font-size:14px;font-weight:700;text-align:right">KES ${input.amount.toLocaleString("en-KE", { minimumFractionDigits: 2 })}</td></tr><tr><td style="padding:12px 14px;color:#82939b;font-size:12px">Destination</td><td style="padding:12px 14px;color:#eef2f4;font-size:12px;text-align:right">${escapeHtml(input.destinationType)} · ${escapeHtml(input.destination)}</td></tr></table><p style="margin:22px 0 0"><a href="${appUrl()}/admin" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#c5f56e;color:#17200f;text-decoration:none;font-weight:700;font-size:13px">Open admin review</a></p>`);
@@ -39,6 +44,10 @@ async function sendResendEmail(input: { to: string[]; subject: string; html: str
 
 export async function sendVerificationEmail(email: string, token: string) {
   await sendResendEmail({ to: [email], subject: "Verify your LeeTec Engine email", html: buildVerificationEmail(token) });
+}
+
+export async function sendPasswordResetEmail(email: string, token: string) {
+  await sendResendEmail({ to: [email], subject: "Reset your LeeTec Engine password", html: buildPasswordResetEmail(token) });
 }
 
 export async function notifyAdminsOfPayoutRequest(input: { userName: string; userEmail: string; amount: number; destinationType: string; destination: string; requestCount?: number }) {

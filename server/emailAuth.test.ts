@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { hashPassword, verifyPassword } from "./emailAuth.js";
-import { buildPayoutAdminEmail, buildPayoutUserEmail, buildVerificationEmail, normalizeResendFrom } from "./email.js";
+import { buildPasswordResetEmail, buildPayoutAdminEmail, buildPayoutUserEmail, buildVerificationEmail, normalizeResendFrom } from "./email.js";
 
 describe("email authentication", () => {
   it("hashes and verifies passwords", async () => {
@@ -45,5 +45,14 @@ describe("email authentication", () => {
     expect(normalizeResendFrom("LEE TECH <noreply@leetec.online>")).toBe("LEE TECH <noreply@leetec.online>");
     expect(normalizeResendFrom('"LEE TECH <NOREPLY@LEETEC.ONLINE>"')).toBe("LEE TECH <noreply@leetec.online>");
     expect(() => normalizeResendFrom("LEE TECH")).toThrow("RESEND_FROM_EMAIL");
+  });
+
+  it("builds a branded one-time password reset email", () => {
+    const html = buildPasswordResetEmail("reset token&value");
+    expect(html).toContain("Reset your LeeTec password");
+    expect(html).toContain("/reset-password?token=reset%20token%26value");
+    expect(html).toContain("expires in 30 minutes");
+    expect(html).toContain("can be used only once");
+    expect(html).toContain("leetec.online@gmail.com");
   });
 });

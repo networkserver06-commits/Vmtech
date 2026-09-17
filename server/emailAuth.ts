@@ -8,7 +8,7 @@ import type { Request, Response } from "express";
 import { parse as parseCookieHeader } from "cookie";
 import { COOKIE_NAME, ONE_YEAR_MS } from "../shared/const.js";
 import { isConfiguredAdminEmail } from "./_core/env.js";
-import { sendVerificationEmail } from "./email.js";
+import { sendPasswordResetEmail, sendVerificationEmail } from "./email.js";
 
 const scrypt = promisify(scryptCallback);
 const sessionKey = () => {
@@ -17,6 +17,7 @@ const sessionKey = () => {
   return new TextEncoder().encode(secret);
 };
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
+const genericResetMessage = "If an account exists for that email, a password reset link has been sent.";
 
 export async function hashPassword(password: string) {
   const salt = randomBytes(16).toString("hex");
@@ -62,6 +63,29 @@ export async function resendVerificationEmail(emailInput: string) {
   await db.execute({ sql: "INSERT INTO emailVerificationTokens (userId, tokenHash, expiresAt) VALUES (?, ?, ?)", args: [Number(row.id), hashToken(rawToken), new Date(Date.now() + 30 * 60 * 1000).toISOString()] });
   await sendVerificationEmail(email, rawToken);
   return { sent: true };
+}
+
+export async function requestPasswordReset(emailInput: string) {
+  const db = await getTurso(); if (!db) throw new Error("Turso is not configured");
+  const email = emailInput.trim().toLowerCase();
+  const user = asRows<TursoRow>(await db.execute({ sql: "SELECT id, email FROM users WHERE lower(email) = ? LIMIT 1", args: [email] }))[0];
+  if (!user?.id || !user.email) return { message: genericResetMessage };
+  const rawToken = randomBytes(32).toString("hex");
+  await db.execute({ sql: "UPDATE passwordResetTokens SET usedAt = ? WHERE userId = ? AND usedAt IS NULL", args: [new Date().toISOString(), Number(user.id)] });
+  await db.execute({ sql: "INSERT INTO passwordResetTokens (userId, tokenHash, expiresAt) VALUES (?, ?, ?)", args: [Number(user.id), hashToken(rawToken), new Date(Date.now() + 30 * 60 * 1000).toISOString()] });
+  try { await sendPasswordResetEmail(String(user.email), rawToken); } catch { /* keep the response generic to avoid account enumeration */ }
+  return { message: genericResetMessage };
+}
+
+export async function resetPasswordWithToken(tokenInput: string, newPassword: string) {
+  const db = await getTurso(); if (!db) throw new Error("Turso is not configured");
+  const token = tokenInput.trim();
+  if (!token) throw new Error("This password reset link is invalid or expired.");
+  const row = asRows<TursoRow>(await db.execute({ sql: "SELECT id, userId, expiresAt, usedAt FROM passwordResetTokens WHERE tokenHash = ? LIMIT 1", args: [hashToken(token)] }))[0];
+  if (!row || row.usedAt || new Date(String(row.expiresAt)).getTime() <= Date.now()) throw new Error("This password reset link is invalid or expired.");
+  await db.execute({ sql: "UPDATE users SET passwordHash = ?, updatedAt = ? WHERE id = ?", args: [await hashPassword(newPassword), new Date().toISOString(), Number(row.userId)] });
+  await db.execute({ sql: "UPDATE passwordResetTokens SET usedAt = ? WHERE id = ?", args: [new Date().toISOString(), Number(row.id)] });
+  return { success: true };
 }
 
 export async function verifyEmail(token: string) {
