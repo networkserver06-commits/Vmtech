@@ -19,6 +19,8 @@ describe("email authentication", () => {
   it("builds a branded verification email with a safe verification link", () => {
     const html = buildVerificationEmail("token with spaces&symbols");
     expect(html).toContain("Powered by <strong style=\"color:#c5f56e\">LeeTec Engine</strong>");
+    expect(html).toContain('mailto:leetec.online@gmail.com');
+    expect(html).toContain("Support: leetec.online@gmail.com");
     expect(html).toContain("/api/auth/verify?token=token%20with%20spaces%26symbols");
     expect(html).toContain("Verify email address");
   });
