@@ -765,3 +765,10 @@ html:not(.dark) .public-checkout-card { background: rgba(255,255,255,.94); box-s
   .admin-panel .modal-actions { display: grid; grid-template-columns: 1fr; gap: 8px; }
   .admin-panel .modal-actions button { width: 100%; min-height: 42px; }
 }
+
+/* Required verification trust signal on the public homepage. */
+.landing-security-note { display: inline-flex; align-items: center; gap: 10px; margin-top: 18px; padding: 10px 12px; border: 1px solid rgba(197,245,110,.18); border-radius: 9px; background: rgba(197,245,110,.05); color: var(--lime); }
+.landing-security-note span { display: grid; gap: 3px; }
+.landing-security-note strong { color: #d7ebbc; font-size: 10px; letter-spacing: .02em; }
+.landing-security-note small { color: #80918e; font-size: 9px; }
+@media (max-width: 560px) { .landing-security-note { width: 100%; box-sizing: border-box; } }
