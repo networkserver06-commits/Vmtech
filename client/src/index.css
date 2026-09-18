@@ -785,3 +785,25 @@ html:not(.dark) .public-checkout-card { background: rgba(255,255,255,.94); box-s
 .landing-share-visual img { display: block; width: 100%; height: auto; aspect-ratio: 1200 / 630; object-fit: cover; }
 .landing-share-visual .console-glow { z-index: 0; }
 @media (max-width: 760px) { .landing-share-visual { width: 100%; transform: rotate(.5deg); } }
+
+/* Final public homepage spacing and hero-image refinement. */
+.landing-hero { min-height: auto; padding-top: clamp(58px, 8vw, 88px); padding-bottom: clamp(68px, 8vw, 94px); }
+.landing-hero-copy { align-self: center; }
+.landing-share-visual { align-self: center; width: 100%; max-width: 620px; margin-inline: auto; }
+.landing-share-visual img { position: relative; z-index: 1; border-radius: 12px; }
+.landing-section { padding-top: clamp(72px, 8vw, 95px); }
+@media (max-width: 850px) {
+  .landing-hero { gap: 38px; padding-top: 58px; }
+  .landing-share-visual { max-width: 640px; }
+}
+@media (max-width: 560px) {
+  .landing-hero { gap: 34px; padding-top: 42px; padding-bottom: 58px; }
+  .landing-hero h1 { max-width: 100%; margin-top: 18px; margin-bottom: 17px; font-size: clamp(42px, 13vw, 53px); line-height: 1.01; letter-spacing: -2.6px; }
+  .landing-hero-copy > p { font-size: 13px; line-height: 1.7; }
+  .landing-hero-actions { margin-top: 25px; gap: 14px; }
+  .landing-proof { margin-top: 27px; }
+  .landing-share-visual { min-height: 0; transform: rotate(.35deg); border-radius: 11px; }
+  .landing-share-visual img { border-radius: 10px; }
+  .landing-section { padding-top: 58px; padding-bottom: 66px; }
+  .feature-grid { margin-top: 30px; }
+}
