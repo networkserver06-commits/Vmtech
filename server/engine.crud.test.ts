@@ -40,14 +40,14 @@ describe("engine CRUD contracts", () => {
     await expect(caller.engine.createPayout({ phoneNumber: "0712884203", amount: 2500, commandId: "BusinessPayment" })).resolves.toBeNull();
   });
 
-  it("rejects direct Till payout requests", async () => {
+  it("accepts Till payout destinations for manual review", async () => {
     const caller = appRouter.createCaller(createContext());
-    await expect(caller.engine.requestPayoutForAll({ destinationType: "TILL" as never, destination: "123456" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(caller.engine.requestPayoutForAll({ destinationType: "TILL", destination: "123456" })).rejects.toMatchObject({ message: "Database is not configured" });
   });
 
   it("rejects invalid payout phone destinations", async () => {
     const caller = appRouter.createCaller(createContext());
-    await expect(caller.engine.requestPayoutForAll({ destinationType: "PHONE", destination: "123456" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(caller.engine.requestPayoutForAll({ destinationType: "PHONE", destination: "1234" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
   it("protects Super Admin procedures from regular developers", async () => {

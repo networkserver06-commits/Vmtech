@@ -29,6 +29,7 @@ export function normalizeKenyanPhone(value: string): string {
 const phoneSchema = z.string().trim().transform(normalizeKenyanPhone);
 const payoutDestinationSchema = z.string().trim().regex(/^(?:\d{5,8}|(?:254|0)(?:7|1)\d{8})$/, "Enter a Kenyan phone number or 5–8 digit Till/PayBill number").transform((value) => /^(?:254|0)(?:7|1)\d{8}$/.test(value) ? (value.startsWith("0") ? `254${value.slice(1)}` : value) : value);
 const tillOrPhoneSchema = z.string().trim().regex(/^(?:\d{5,8}|254(?:7|1)\d{8})$/, "Enter a phone number or 5–8 digit Till/PayBill number");
+const payoutRequestDestinationSchema = z.string().trim().regex(/^(?:\d{5,8}|(?:254|0)(?:7|1)\d{8})$/, "Enter a valid payout phone, Till, or PayBill number").transform((value) => /^(?:0(?:7|1)\d{8})$/.test(value) ? `254${value.slice(1)}` : value);
 const amountSchema = z.number().positive().max(1500000);
 const payoutRequestAmountSchema = z.number().min(50, "Minimum payout request is KES 50").max(1500000);
 
@@ -64,14 +65,14 @@ export const appRouter = router({
     listWalletLedger: protectedProcedure.query(({ ctx }) => listUserWalletLedger(ctx.user.id)),
     listCollections: protectedProcedure.query(({ ctx }) => listCollections(ctx.user.id)),
     listPayoutRequests: protectedProcedure.query(({ ctx }) => listPayoutRequests(ctx.user.id)),
-    requestPayout: protectedProcedure.input(z.object({ transactionId: z.number().int().positive(), amount: payoutRequestAmountSchema, destinationType: z.literal("PHONE"), destination: phoneSchema })).mutation(async ({ ctx, input }) => {
+    requestPayout: protectedProcedure.input(z.object({ transactionId: z.number().int().positive(), amount: payoutRequestAmountSchema, destinationType: z.enum(["PHONE", "TILL"]), destination: payoutRequestDestinationSchema })).mutation(async ({ ctx, input }) => {
       const result = await createPayoutRequest({ userId: ctx.user.id, ...input });
       await writeAuditLog({ userId: ctx.user.id, action: "PAYOUT_REQUESTED", details: { payoutRequestId: result.id, transactionId: input.transactionId, amount: input.amount, destinationType: input.destinationType, destination: input.destination, email: ctx.user.email } });
       try { await notifyAdminsOfPayoutRequest({ userName: ctx.user.name || "LeeTec customer", userEmail: ctx.user.email || "Unknown email", amount: input.amount, destinationType: input.destinationType, destination: input.destination }); } catch { /* payout requests remain valid if notification delivery is temporarily unavailable */ }
       try { await notifyUserOfPayoutStatus(ctx.user.email || "", { userName: ctx.user.name || "LeeTec customer", amount: input.amount, destinationType: input.destinationType, destination: input.destination, status: "REQUESTED" }); } catch { /* payout requests remain valid if notification delivery is temporarily unavailable */ }
       return result;
     }),
-    requestPayoutForAll: protectedProcedure.input(z.object({ destinationType: z.literal("PHONE"), destination: phoneSchema })).mutation(async ({ ctx, input }) => {
+    requestPayoutForAll: protectedProcedure.input(z.object({ destinationType: z.enum(["PHONE", "TILL"]), destination: payoutRequestDestinationSchema })).mutation(async ({ ctx, input }) => {
       const result = await createPayoutRequestsForAll({ userId: ctx.user.id, ...input });
       if (!result.count) throw new TRPCError({ code: "BAD_REQUEST", message: "No eligible successful collections are available for payout. Collections must be successful, at least KES 50, and not already requested." });
       await writeAuditLog({ userId: ctx.user.id, action: "PAYOUT_REQUESTED_FOR_ALL_COLLECTIONS", details: { ...input, count: result.count, totalAmount: result.totalAmount, email: ctx.user.email } });
