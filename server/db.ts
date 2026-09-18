@@ -2,6 +2,7 @@ import type { User } from "../drizzle/schema.js";
 import { asRows, execute, getTurso, type TursoRow } from "./turso.js";
 import { isConfiguredAdminEmail } from "./_core/env.js";
 import { decryptSecret, signWebhook } from "./security.js";
+import { sendSignupBonusEmail } from "./email.js";
 import { randomUUID } from "node:crypto";
 
 const now = () => new Date().toISOString();
@@ -37,12 +38,15 @@ export async function upsertUser(user: { openId: string; accountId?: string | nu
   if (saved) {
     const userId = Number(saved.id);
     const bonusReference = SIGNUP_BONUS_REFERENCE(userId);
-    await db.batch([
+    const bonusResults = await db.batch([
       { sql: "INSERT OR IGNORE INTO wallets (userId) VALUES (?)", args: [userId] },
       { sql: "UPDATE wallets SET balance = CAST(balance AS REAL) + ?, updatedAt = ? WHERE userId = ? AND EXISTS (SELECT 1 FROM users WHERE id = ? AND signupBonusGranted = 0) AND NOT EXISTS (SELECT 1 FROM walletTransactions WHERE reference = ?)", args: [SIGNUP_BONUS_AMOUNT.toFixed(2), now(), userId, userId, bonusReference] },
       { sql: "INSERT OR IGNORE INTO walletTransactions (walletId, amount, type, reference, description) SELECT id, ?, 'SIGNUP_BONUS', ?, ? FROM wallets WHERE userId = ? AND NOT EXISTS (SELECT 1 FROM walletTransactions WHERE reference = ?)", args: [SIGNUP_BONUS_AMOUNT.toFixed(2), bonusReference, "Welcome bonus for creating a LeeTec account", userId, bonusReference] },
       { sql: "UPDATE users SET signupBonusGranted = 1 WHERE id = ? AND signupBonusGranted = 0", args: [userId] },
     ], "write");
+    if (Number(bonusResults[3]?.rowsAffected ?? 0) === 1 && user.email) {
+      try { await sendSignupBonusEmail(String(user.email), String(user.name ?? "there")); } catch (error) { console.error("signup bonus email delivery failed", error); }
+    }
   }
 }
 

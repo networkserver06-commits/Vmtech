@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { hashPassword, verifyPassword } from "./emailAuth.js";
-import { buildPasswordResetEmail, buildPayoutAdminEmail, buildPayoutUserEmail, buildVerificationEmail, normalizeResendFrom } from "./email.js";
+import { buildPasswordResetEmail, buildPayoutAdminEmail, buildPayoutUserEmail, buildSignupBonusEmail, buildVerificationEmail, normalizeResendFrom } from "./email.js";
 
 describe("email authentication", () => {
   it("hashes and verifies passwords", async () => {
@@ -54,5 +54,15 @@ describe("email authentication", () => {
     expect(html).toContain("expires in 30 minutes");
     expect(html).toContain("can be used only once");
     expect(html).toContain("leetec.online@gmail.com");
+  });
+
+  it("builds a branded signup bonus email with the KES 5 credit", () => {
+    const html = buildSignupBonusEmail("A <New User>");
+    expect(html).toContain("Your KES 5 welcome credit is ready");
+    expect(html).toContain("A &lt;New User&gt;");
+    expect(html).toContain("KES 5.00");
+    expect(html).toContain("One-time signup bonus");
+    expect(html).toContain("Powered by <strong style=\"color:#c5f56e\">LeeTec Engine</strong>");
+    expect(html).toContain("Support: leetec.online@gmail.com");
   });
 });

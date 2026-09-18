@@ -19,6 +19,10 @@ export function buildVerificationEmail(token: string) {
   return brandedEmail("Verify your email address", "Confirm your LeeTec Engine email address to secure your workspace.", `<p style="margin:0 0 18px;color:#aab8bd;font-size:15px;line-height:1.7">Welcome to LeeTec Engine. Confirm your email to keep your workspace account secure.</p><p style="margin:0 0 24px"><a href="${verificationUrl}" style="display:inline-block;padding:13px 20px;border-radius:8px;background:#c5f56e;color:#17200f;text-decoration:none;font-weight:700;font-size:14px">Verify email address</a></p><p style="margin:0;color:#71818a;font-size:12px;line-height:1.6">This verification link expires in 30 minutes. If you did not create this account, you can safely ignore this message.</p>`);
 }
 
+export function buildSignupBonusEmail(userName: string) {
+  return brandedEmail("Your KES 5 welcome credit is ready", "Your free KES 5 LeeTec Engine signup bonus has been added to your wallet.", `<p style="margin:0 0 18px;color:#aab8bd;font-size:15px;line-height:1.7">Hi ${escapeHtml(userName)}, welcome to LeeTec Engine. We have added a one-time <strong style="color:#c5f56e">KES 5.00</strong> welcome credit to your wallet.</p><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #2a3a43;border-radius:10px;background:#141e27"><tr><td style="padding:14px;color:#82939b;font-size:12px">Credit</td><td style="padding:14px;color:#c5f56e;font-size:16px;font-weight:700;text-align:right">KES 5.00</td></tr><tr><td style="padding:14px;color:#82939b;font-size:12px">Type</td><td style="padding:14px;color:#eef2f4;font-size:12px;text-align:right">One-time signup bonus</td></tr></table><p style="margin:20px 0 0;color:#71818a;font-size:12px;line-height:1.6">Sign in after verifying your email to view the credit in your wallet and start exploring the LeeTec M-Pesa API.</p><p style="margin:22px 0 0"><a href="${appUrl()}/login" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#c5f56e;color:#17200f;text-decoration:none;font-weight:700;font-size:13px">Open your workspace</a></p>`);
+}
+
 export function buildPasswordResetEmail(token: string) {
   const resetUrl = `${appUrl()}/reset-password?token=${encodeURIComponent(token)}`;
   return brandedEmail("Reset your LeeTec password", "Securely reset your LeeTec Engine workspace password.", `<p style="margin:0 0 18px;color:#aab8bd;font-size:15px;line-height:1.7">We received a request to reset your LeeTec Engine password.</p><p style="margin:0 0 24px"><a href="${resetUrl}" style="display:inline-block;padding:13px 20px;border-radius:8px;background:#c5f56e;color:#17200f;text-decoration:none;font-weight:700;font-size:14px">Reset password</a></p><p style="margin:0;color:#71818a;font-size:12px;line-height:1.6">This secure link expires in 30 minutes and can be used only once. If you did not request a reset, you can safely ignore this email.</p>`);
@@ -44,6 +48,10 @@ async function sendResendEmail(input: { to: string[]; subject: string; html: str
 
 export async function sendVerificationEmail(email: string, token: string) {
   await sendResendEmail({ to: [email], subject: "Verify your LeeTec Engine email", html: buildVerificationEmail(token) });
+}
+
+export async function sendSignupBonusEmail(email: string, userName: string) {
+  await sendResendEmail({ to: [email], subject: "Your LeeTec KES 5 welcome credit is ready", html: buildSignupBonusEmail(userName) });
 }
 
 export async function sendPasswordResetEmail(email: string, token: string) {
