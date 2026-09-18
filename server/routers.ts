@@ -64,14 +64,14 @@ export const appRouter = router({
     listWalletLedger: protectedProcedure.query(({ ctx }) => listUserWalletLedger(ctx.user.id)),
     listCollections: protectedProcedure.query(({ ctx }) => listCollections(ctx.user.id)),
     listPayoutRequests: protectedProcedure.query(({ ctx }) => listPayoutRequests(ctx.user.id)),
-    requestPayout: protectedProcedure.input(z.object({ transactionId: z.number().int().positive(), amount: payoutRequestAmountSchema, destinationType: z.enum(["PHONE", "TILL"]), destination: z.string().trim().min(5).max(20) })).mutation(async ({ ctx, input }) => {
+    requestPayout: protectedProcedure.input(z.object({ transactionId: z.number().int().positive(), amount: payoutRequestAmountSchema, destinationType: z.literal("PHONE"), destination: phoneSchema })).mutation(async ({ ctx, input }) => {
       const result = await createPayoutRequest({ userId: ctx.user.id, ...input });
       await writeAuditLog({ userId: ctx.user.id, action: "PAYOUT_REQUESTED", details: { payoutRequestId: result.id, transactionId: input.transactionId, amount: input.amount, destinationType: input.destinationType, destination: input.destination, email: ctx.user.email } });
       try { await notifyAdminsOfPayoutRequest({ userName: ctx.user.name || "LeeTec customer", userEmail: ctx.user.email || "Unknown email", amount: input.amount, destinationType: input.destinationType, destination: input.destination }); } catch { /* payout requests remain valid if notification delivery is temporarily unavailable */ }
       try { await notifyUserOfPayoutStatus(ctx.user.email || "", { userName: ctx.user.name || "LeeTec customer", amount: input.amount, destinationType: input.destinationType, destination: input.destination, status: "REQUESTED" }); } catch { /* payout requests remain valid if notification delivery is temporarily unavailable */ }
       return result;
     }),
-    requestPayoutForAll: protectedProcedure.input(z.object({ destinationType: z.enum(["PHONE", "TILL"]), destination: z.string().trim().min(5).max(20) })).mutation(async ({ ctx, input }) => {
+    requestPayoutForAll: protectedProcedure.input(z.object({ destinationType: z.literal("PHONE"), destination: phoneSchema })).mutation(async ({ ctx, input }) => {
       const result = await createPayoutRequestsForAll({ userId: ctx.user.id, ...input });
       if (!result.count) throw new TRPCError({ code: "BAD_REQUEST", message: "No eligible successful collections are available for payout. Collections must be successful, at least KES 50, and not already requested." });
       await writeAuditLog({ userId: ctx.user.id, action: "PAYOUT_REQUESTED_FOR_ALL_COLLECTIONS", details: { ...input, count: result.count, totalAmount: result.totalAmount, email: ctx.user.email } });
