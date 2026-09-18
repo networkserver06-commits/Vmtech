@@ -26,6 +26,7 @@ function Router() {
       <Route path="/collections" component={Collections} />
       <Route path="/docs" component={Documentation} />
       <Route path="/documentation" component={Documentation} />
+      <Route path="/developers" component={Documentation} />
       <Route path="/pay" component={PaymentLinkCheckout} />
       <Route path="/pay/:merchantSlug" component={PaymentLinkCheckout} />
       <Route path="/pay" component={PaymentLinkCheckout} />
