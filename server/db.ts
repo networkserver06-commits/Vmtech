@@ -5,6 +5,8 @@ import { decryptSecret, signWebhook } from "./security.js";
 import { randomUUID } from "node:crypto";
 
 const now = () => new Date().toISOString();
+const SIGNUP_BONUS_AMOUNT = 5;
+const SIGNUP_BONUS_REFERENCE = (userId: number) => `SIGNUP_BONUS_${userId}`;
 const userFromRow = (row: TursoRow) => {
   const { passwordHash: _passwordHash, ...safeRow } = row;
   return { ...safeRow, role: isConfiguredAdminEmail(row.email == null ? null : String(row.email)) ? "admin" : row.role, isSuspended: Boolean(row.isSuspended), createdAt: new Date(String(row.createdAt)), updatedAt: new Date(String(row.updatedAt)), lastSignedIn: new Date(String(row.lastSignedIn)) } as unknown as User;
@@ -32,7 +34,16 @@ export async function upsertUser(user: { openId: string; accountId?: string | nu
   await db.execute({ sql: `INSERT INTO users (openId, accountId, username, name, email, loginMethod, role, lastSignedIn, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(openId) DO UPDATE SET accountId=COALESCE(users.accountId, excluded.accountId), name=excluded.name, email=excluded.email, loginMethod=excluded.loginMethod, role=excluded.role, lastSignedIn=excluded.lastSignedIn, updatedAt=excluded.updatedAt`, args: [user.openId, accountId ?? null, username, user.name ?? null, user.email ?? null, user.loginMethod ?? null, user.role ?? "user", signedIn, now()] });
   const saved = asRows<TursoRow>(await db.execute({ sql: "SELECT id FROM users WHERE openId = ?", args: [user.openId] }))[0];
-  if (saved) await db.execute({ sql: "INSERT OR IGNORE INTO wallets (userId) VALUES (?)", args: [Number(saved.id)] });
+  if (saved) {
+    const userId = Number(saved.id);
+    const bonusReference = SIGNUP_BONUS_REFERENCE(userId);
+    await db.batch([
+      { sql: "INSERT OR IGNORE INTO wallets (userId) VALUES (?)", args: [userId] },
+      { sql: "UPDATE wallets SET balance = CAST(balance AS REAL) + ?, updatedAt = ? WHERE userId = ? AND EXISTS (SELECT 1 FROM users WHERE id = ? AND signupBonusGranted = 0) AND NOT EXISTS (SELECT 1 FROM walletTransactions WHERE reference = ?)", args: [SIGNUP_BONUS_AMOUNT.toFixed(2), now(), userId, userId, bonusReference] },
+      { sql: "INSERT OR IGNORE INTO walletTransactions (walletId, amount, type, reference, description) SELECT id, ?, 'SIGNUP_BONUS', ?, ? FROM wallets WHERE userId = ? AND NOT EXISTS (SELECT 1 FROM walletTransactions WHERE reference = ?)", args: [SIGNUP_BONUS_AMOUNT.toFixed(2), bonusReference, "Welcome bonus for creating a LeeTec account", userId, bonusReference] },
+      { sql: "UPDATE users SET signupBonusGranted = 1 WHERE id = ? AND signupBonusGranted = 0", args: [userId] },
+    ], "write");
+  }
 }
 
 export async function getUserByOpenId(openId: string) {
@@ -104,7 +115,10 @@ async function reconcileSuccessfulStkFees(userId: number) {
     const amount = Number(row.amount ?? 0); const fee = calculatePlatformFee(amount); const net = Math.max(0, amount - fee); const reference = `STK_FEE_${String(row.id)}`;
     const claimed = await db.execute({ sql: "UPDATE transactions SET platformFee = ?, netAmount = ?, feeChargedAt = ? WHERE id = ? AND userId = ? AND status = 'SUCCESS' AND feeChargedAt IS NULL", args: [fee.toFixed(2), net.toFixed(2), now(), Number(row.id), userId] });
     if (Number(claimed.rowsAffected ?? 0) !== 1) continue;
-    await db.batch([{ sql: "INSERT OR IGNORE INTO wallets (userId, balance) VALUES (?, '0.00')", args: [userId] }, { sql: "UPDATE wallets SET balance = CAST(balance AS REAL) - ?, updatedAt = ? WHERE userId = ?", args: [fee.toFixed(2), now(), userId] }, { sql: "INSERT OR IGNORE INTO walletTransactions (walletId, amount, type, reference, description) SELECT id, ?, 'PLATFORM_FEE', ?, ? FROM wallets WHERE userId = ?", args: [(-fee).toFixed(2), reference, `Platform fee for STK Push transaction ${row.id}`, userId] }], "write");
+    await db.execute({ sql: "INSERT OR IGNORE INTO wallets (userId, balance) VALUES (?, '0.00')", args: [userId] });
+    const charged = await db.execute({ sql: "UPDATE wallets SET balance = CAST(balance AS REAL) - ?, updatedAt = ? WHERE userId = ? AND CAST(balance AS REAL) >= ?", args: [fee.toFixed(2), now(), userId, fee.toFixed(2)] });
+    if (Number(charged.rowsAffected ?? 0) !== 1) { await db.execute({ sql: "UPDATE transactions SET platformFee = '0.00', netAmount = NULL, feeChargedAt = NULL WHERE id = ? AND feeChargedAt IS NOT NULL", args: [Number(row.id)] }); continue; }
+    await db.execute({ sql: "INSERT OR IGNORE INTO walletTransactions (walletId, amount, type, reference, description) SELECT id, ?, 'PLATFORM_FEE', ?, ? FROM wallets WHERE userId = ?", args: [(-fee).toFixed(2), reference, `Platform fee for STK Push transaction ${row.id}`, userId] });
   }
 }
 export async function reconcileUserStkFees(userId: number) { await reconcileSuccessfulStkFees(userId); }
@@ -123,7 +137,7 @@ export async function getTransactionStatus(userId: number, checkoutRequestId: st
   return row;
 }
 export async function createCollection(input: { userId: number; checkoutRequestId: string; accountReference: string; phoneNumber: string; amount: number; status?: string }) { return execute({ sql: "INSERT INTO transactions (userId, checkoutRequestId, accountReference, phoneNumber, amount, status) VALUES (?, ?, ?, ?, ?, ?)", args: [input.userId, input.checkoutRequestId, input.accountReference, input.phoneNumber, input.amount.toFixed(2), input.status ?? "PENDING"] }); }
-export async function insertTransaction(input: { userId: number; checkoutRequestId: string; merchantRequestId?: string; accountReference: string; phoneNumber: string; amount: number; tillId?: number | null; status?: string; failureReason?: string | null }) { return execute({ sql: "INSERT INTO transactions (userId, checkoutRequestId, merchantRequestId, tillId, accountReference, phoneNumber, amount, status, netAmount, failureReason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", args: [input.userId, input.checkoutRequestId, input.merchantRequestId ?? null, input.tillId ?? null, input.accountReference, input.phoneNumber, input.amount.toFixed(2), input.status ?? "PENDING", input.amount.toFixed(2), input.failureReason ?? null] }); }
+export async function insertTransaction(input: { userId: number; checkoutRequestId: string; merchantRequestId?: string; accountReference: string; phoneNumber: string; amount: number; tillId?: number | null; status?: string; failureReason?: string | null; feeReservationReference?: string | null }) { return execute({ sql: "INSERT INTO transactions (userId, checkoutRequestId, merchantRequestId, tillId, accountReference, phoneNumber, amount, status, netAmount, failureReason, feeReservedAt, feeReservationReference) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", args: [input.userId, input.checkoutRequestId, input.merchantRequestId ?? null, input.tillId ?? null, input.accountReference, input.phoneNumber, input.amount.toFixed(2), input.status ?? "PENDING", input.amount.toFixed(2), input.failureReason ?? null, input.feeReservationReference ? now() : null, input.feeReservationReference ?? null] }); }
 export async function updateCollection(userId: number, id: number, input: { phoneNumber: string; amount: number; accountReference: string }) { return execute({ sql: "UPDATE transactions SET phoneNumber = ?, amount = ?, accountReference = ? WHERE id = ? AND userId = ?", args: [input.phoneNumber, input.amount.toFixed(2), input.accountReference, id, userId] }); }
 export async function deleteCollection(userId: number, id: number) { return execute({ sql: "DELETE FROM transactions WHERE id = ? AND userId = ?", args: [id, userId] }); }
 export async function listPayouts(userId: number) { const result = await execute({ sql: "SELECT * FROM payouts WHERE userId = ? ORDER BY datetime(createdAt) DESC", args: [userId] }); return result ? asRows<TursoRow>(result) : []; }
@@ -219,6 +233,35 @@ export async function dispatchUserWebhooks(userId: number, event: string, data: 
 export async function authenticateApiKey(keyHash: string) { const result = await execute({ sql: "SELECT a.id AS apiKeyId, a.userId AS apiUserId, u.id, u.openId, u.accountId, u.name, u.email, u.loginMethod, u.passwordHash, u.emailVerified, u.role, u.isSuspended, u.createdAt, u.updatedAt, u.lastSignedIn FROM apiKeys a JOIN users u ON u.id = a.userId WHERE a.keyHash = ? AND a.isActive = 1 LIMIT 1", args: [keyHash] }); const row = result ? asRows<TursoRow>(result)[0] : undefined; return row ? { keyId: Number(row.apiKeyId), user: userFromRow(row) } : null; }
 export async function markApiKeyUsed(keyId: number) { return execute({ sql: "UPDATE apiKeys SET lastUsedAt = ? WHERE id = ?", args: [now(), keyId] }); }
 export function calculatePlatformFee(amount: number) { return amount >= 1 && amount <= 50 ? 1 : Math.round(amount * 0.015 * 100) / 100; }
+export async function reserveWalletFee(input: { userId: number; amount: number; reference: string }) {
+  const db = await getTurso(); if (!db) throw new Error("Database is not configured");
+  const fee = calculatePlatformFee(input.amount); const timestamp = now();
+  await db.execute({ sql: "INSERT OR IGNORE INTO wallets (userId, balance) VALUES (?, '0.00')", args: [input.userId] });
+  const result = await db.execute({ sql: "UPDATE wallets SET balance = CAST(balance AS REAL) - ?, updatedAt = ? WHERE userId = ? AND CAST(balance AS REAL) >= ?", args: [fee.toFixed(2), timestamp, input.userId, fee.toFixed(2)] });
+  if (Number(result.rowsAffected ?? 0) !== 1) return null;
+  try {
+    await db.execute({ sql: "INSERT INTO walletTransactions (walletId, amount, type, reference, description) SELECT id, ?, 'PLATFORM_FEE_RESERVED', ?, ? FROM wallets WHERE userId = ?", args: [(-fee).toFixed(2), input.reference, `Reserved platform fee for STK Push (${input.amount.toFixed(2)} KES)`, input.userId] });
+  } catch (error) {
+    await db.execute({ sql: "UPDATE wallets SET balance = CAST(balance AS REAL) + ?, updatedAt = ? WHERE userId = ?", args: [fee.toFixed(2), now(), input.userId] });
+    throw error;
+  }
+  return { fee, reference: input.reference };
+}
+export async function releaseWalletFee(input: { userId: number; fee: number; reference: string; reason: string }) {
+  const db = await getTurso(); if (!db) return null;
+  const releaseReference = `${input.reference}_RELEASE`;
+  return db.batch([
+    { sql: "UPDATE wallets SET balance = CAST(balance AS REAL) + ?, updatedAt = ? WHERE userId = ?", args: [input.fee.toFixed(2), now(), input.userId] },
+    { sql: "INSERT OR IGNORE INTO walletTransactions (walletId, amount, type, reference, description) SELECT id, ?, 'PLATFORM_FEE_RELEASE', ?, ? FROM wallets WHERE userId = ?", args: [input.fee.toFixed(2), releaseReference, input.reason, input.userId] },
+    { sql: "UPDATE transactions SET feeReleasedAt = ? WHERE feeReservationReference = ? AND feeReleasedAt IS NULL", args: [now(), input.reference] },
+  ], "write");
+}
+async function releaseTransactionFee(checkoutRequestId: string, reason: string) {
+  const db = await getTurso(); if (!db) return null;
+  const row = asRows<TursoRow>(await db.execute({ sql: "SELECT userId, amount, feeReservationReference, feeReleasedAt FROM transactions WHERE checkoutRequestId = ? LIMIT 1", args: [checkoutRequestId] }))[0];
+  if (!row?.feeReservationReference || row.feeReleasedAt) return null;
+  return releaseWalletFee({ userId: Number(row.userId), fee: calculatePlatformFee(Number(row.amount)), reference: String(row.feeReservationReference), reason });
+}
 export async function updateStkCallback(input: { checkoutRequestId: string; success: boolean; status?: "SUCCESS" | "FAILED" | "CANCELLED"; failureReason?: string | null; receipt?: string | null; paidAmount?: number | null; paidPhoneNumber?: string | null }) {
   const db = await getTurso(); if (!db) return null;
   const deposit = asRows<TursoRow>(await db.execute({ sql: "SELECT id, userId, amount, phoneNumber, status FROM walletDeposits WHERE checkoutRequestId = ? LIMIT 1", args: [input.checkoutRequestId] }))[0];
@@ -233,17 +276,22 @@ export async function updateStkCallback(input: { checkoutRequestId: string; succ
     await db.batch([{ sql: "INSERT OR IGNORE INTO wallets (userId, balance) VALUES (?, '0.00')", args: [Number(deposit.userId)] }, { sql: "UPDATE wallets SET balance = CAST(balance AS REAL) + ?, updatedAt = ? WHERE userId = ?", args: [amount.toFixed(2), now(), Number(deposit.userId)] }, { sql: "INSERT OR IGNORE INTO walletTransactions (walletId, amount, type, reference, description) SELECT id, ?, 'DEPOSIT', ?, ? FROM wallets WHERE userId = ?", args: [amount.toFixed(2), reference, `Wallet deposit via STK Push ${input.checkoutRequestId}`, Number(deposit.userId)] }], "write");
     return result;
   }
-  if (input.success && !input.receipt) return db.execute({ sql: "UPDATE transactions SET status = 'FAILED', failureReason = ? WHERE checkoutRequestId = ? AND status = 'PENDING'", args: ["Safaricom callback did not include a payment receipt", input.checkoutRequestId] });
+  if (input.success && !input.receipt) { const failed = await db.execute({ sql: "UPDATE transactions SET status = 'FAILED', failureReason = ? WHERE checkoutRequestId = ? AND status = 'PENDING'", args: ["Safaricom callback did not include a payment receipt", input.checkoutRequestId] }); if (Number(failed.rowsAffected ?? 0) === 1) await releaseTransactionFee(input.checkoutRequestId, "Released platform fee because the payment callback had no receipt."); return failed; }
   const transaction = asRows<TursoRow>(await db.execute({ sql: "SELECT amount, phoneNumber FROM transactions WHERE checkoutRequestId = ? LIMIT 1", args: [input.checkoutRequestId] }))[0];
-  if (input.success && transaction && (input.paidAmount == null || Math.abs(Number(transaction.amount) - input.paidAmount) > 0.001 || (input.paidPhoneNumber && String(transaction.phoneNumber) !== input.paidPhoneNumber))) return db.execute({ sql: "UPDATE transactions SET status = 'FAILED', failureReason = ? WHERE checkoutRequestId = ? AND status = 'PENDING'", args: ["Safaricom callback payment details did not match the pending transaction", input.checkoutRequestId] });
+  if (input.success && transaction && (input.paidAmount == null || Math.abs(Number(transaction.amount) - input.paidAmount) > 0.001 || (input.paidPhoneNumber && String(transaction.phoneNumber) !== input.paidPhoneNumber))) { const failed = await db.execute({ sql: "UPDATE transactions SET status = 'FAILED', failureReason = ? WHERE checkoutRequestId = ? AND status = 'PENDING'", args: ["Safaricom callback payment details did not match the pending transaction", input.checkoutRequestId] }); if (Number(failed.rowsAffected ?? 0) === 1) await releaseTransactionFee(input.checkoutRequestId, "Released platform fee because the payment callback details did not match."); return failed; }
   const finalStatus = input.status ?? (input.success ? "SUCCESS" : "FAILED");
   const result = await db.execute({ sql: "UPDATE transactions SET status = ?, failureReason = ?, mpesaReceipt = ? WHERE checkoutRequestId = ? AND status NOT IN ('SUCCESS', 'FAILED', 'CANCELLED')", args: [finalStatus, input.failureReason ?? null, input.receipt ?? null, input.checkoutRequestId] });
-  const row = asRows<TursoRow>(await db.execute({ sql: "SELECT id, userId, amount, accountReference, phoneNumber, status, failureReason, mpesaReceipt, createdAt FROM transactions WHERE checkoutRequestId = ? LIMIT 1", args: [input.checkoutRequestId] }))[0];
+  const row = asRows<TursoRow>(await db.execute({ sql: "SELECT id, userId, amount, accountReference, phoneNumber, status, failureReason, mpesaReceipt, createdAt, feeReservationReference FROM transactions WHERE checkoutRequestId = ? LIMIT 1", args: [input.checkoutRequestId] }))[0];
   if (row && Number(result.rowsAffected ?? 0) === 1) void dispatchUserWebhooks(Number(row.userId), `payment.${String(row.status).toLowerCase()}`, { transactionId: Number(row.id), checkoutRequestId: input.checkoutRequestId, accountReference: String(row.accountReference), phoneNumber: String(row.phoneNumber), amount: Number(row.amount), status: String(row.status), failureReason: row.failureReason == null ? null : String(row.failureReason), mpesaReceipt: row.mpesaReceipt == null ? null : String(row.mpesaReceipt), createdAt: String(row.createdAt) }).catch((error) => console.error("STK webhook dispatch failed", error));
-  if (finalStatus !== "SUCCESS" || Number(result.rowsAffected ?? 0) !== 1) return result;
+  if (finalStatus !== "SUCCESS" || Number(result.rowsAffected ?? 0) !== 1) { if (Number(result.rowsAffected ?? 0) === 1) await releaseTransactionFee(input.checkoutRequestId, "Released platform fee because the payment did not complete successfully."); return result; }
   if (!row) return result;
-  const amount = Number(row.amount ?? 0); const fee = calculatePlatformFee(amount); const net = Math.max(0, amount - fee); const reference = `STK_FEE_${String(row.id)}`;
-  await db.batch([{ sql: "UPDATE transactions SET platformFee = ?, netAmount = ?, feeChargedAt = ? WHERE id = ? AND feeChargedAt IS NULL", args: [fee.toFixed(2), net.toFixed(2), now(), Number(row.id)] }, { sql: "INSERT OR IGNORE INTO wallets (userId, balance) VALUES (?, '0.00')", args: [Number(row.userId)] }, { sql: "UPDATE wallets SET balance = CAST(balance AS REAL) - ?, updatedAt = ? WHERE userId = ?", args: [fee.toFixed(2), now(), Number(row.userId)] }, { sql: "INSERT OR IGNORE INTO walletTransactions (walletId, amount, type, reference, description) SELECT id, ?, 'PLATFORM_FEE', ?, ? FROM wallets WHERE userId = ?", args: [(-fee).toFixed(2), reference, `Platform fee for STK Push ${input.checkoutRequestId}`, Number(row.userId)] }], "write");
+  const amount = Number(row.amount ?? 0); const fee = calculatePlatformFee(amount); const net = Math.max(0, amount - fee); const reference = String(row.feeReservationReference ?? `STK_FEE_${String(row.id)}`);
+  if (row.feeReservationReference) {
+    await db.batch([{ sql: "UPDATE transactions SET platformFee = ?, netAmount = ?, feeChargedAt = ? WHERE id = ? AND feeChargedAt IS NULL", args: [fee.toFixed(2), net.toFixed(2), now(), Number(row.id)] }, { sql: "UPDATE walletTransactions SET type = 'PLATFORM_FEE', description = ? WHERE reference = ?", args: [`Platform fee for STK Push ${input.checkoutRequestId}`, reference] }], "write");
+  } else {
+    const charged = await db.execute({ sql: "UPDATE wallets SET balance = CAST(balance AS REAL) - ?, updatedAt = ? WHERE userId = ? AND CAST(balance AS REAL) >= ?", args: [fee.toFixed(2), now(), Number(row.userId), fee.toFixed(2)] });
+    if (Number(charged.rowsAffected ?? 0) === 1) await db.batch([{ sql: "UPDATE transactions SET platformFee = ?, netAmount = ?, feeChargedAt = ? WHERE id = ? AND feeChargedAt IS NULL", args: [fee.toFixed(2), net.toFixed(2), now(), Number(row.id)] }, { sql: "INSERT OR IGNORE INTO walletTransactions (walletId, amount, type, reference, description) SELECT id, ?, 'PLATFORM_FEE', ?, ? FROM wallets WHERE userId = ?", args: [(-fee).toFixed(2), reference, `Platform fee for STK Push ${input.checkoutRequestId}`, Number(row.userId)] }], "write");
+  }
   return result;
 }
 function generateAuditReference() { return `1AUD${Date.now()}${Math.floor(Math.random() * 1000)}`.slice(0, 64); }

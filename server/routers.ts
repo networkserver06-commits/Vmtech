@@ -5,7 +5,7 @@ import { getSessionCookieOptions } from "./_core/cookies.js";
 import { systemRouter } from "./_core/systemRouter.js";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc.js";
 import { isConfiguredAdminEmail } from "./_core/env.js";
-import { adjustWallet, calculatePlatformFee, createCollection, createPayout, createPayoutRequest, createPayoutRequestsForAll, createReservedPayout, createTill, createWebhook, deleteApiKey, deleteCollection, deletePayout, deleteTill, deleteWebhook, getAdminOverview, getOverviewData, getPayoutRequest, getStoredMpesaConfig, getSystemSettings, getTill, getWalletBalance, insertApiKey, insertTransaction, insertWalletDeposit, listAdminPayoutRequests, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayoutRequests, listPayouts, listTills, listUserWalletLedger, listWalletDeposits, listWalletLedger, listWebhooks, revokeApiKey, saveMpesaConfig, setUserSuspended, testWebhook, updateCollection, updatePayout, updatePayoutRequestStatus, updateTill, updateUserProfile, writeAuditLog } from "./db.js";
+import { adjustWallet, calculatePlatformFee, createCollection, createPayout, createPayoutRequest, createPayoutRequestsForAll, createReservedPayout, createTill, createWebhook, deleteApiKey, deleteCollection, deletePayout, deleteTill, deleteWebhook, getAdminOverview, getOverviewData, getPayoutRequest, getStoredMpesaConfig, getSystemSettings, getTill, getWalletBalance, insertApiKey, insertTransaction, insertWalletDeposit, listAdminPayoutRequests, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayoutRequests, listPayouts, listTills, listUserWalletLedger, listWalletDeposits, listWalletLedger, listWebhooks, releaseWalletFee, reserveWalletFee, revokeApiKey, saveMpesaConfig, setUserSuspended, testWebhook, updateCollection, updatePayout, updatePayoutRequestStatus, updateTill, updateUserProfile, writeAuditLog } from "./db.js";
 import { createSecurityCredential, encryptSecret, generateApiKey, generatePrefixedReference, getStkCallbackToken, hashApiKey } from "./security.js";
 import { encryptedConfigToDaraja, registerC2bUrls, triggerStkPush } from "./mpesa.js";
 import { changePassword } from "./emailAuth.js";
@@ -119,13 +119,21 @@ export const appRouter = router({
       if (liveEnabled && partyB !== approvedPartyB) throw new TRPCError({ code: "BAD_REQUEST", message: "This Till is not the approved production Buy Goods Till." });
       const config = { ...baseConfig, shortcode: process.env.MPESA_SHORTCODE ?? baseConfig.shortcode };
       const accountReference = input.accountReference ?? generatePrefixedReference();
-      const result = await triggerStkPush(config, { phoneNumber: input.phoneNumber, amount: input.amount, accountReference, transactionDesc: input.transactionDesc, callbackUrl: stkCallbackUrl(), partyB, transactionType: paymentType === "PAYBILL" ? "CustomerPayBillOnline" : "CustomerBuyGoodsOnline" });
-      const checkoutRequestId = String(result.CheckoutRequestID ?? result.checkoutRequestId ?? "");
-      const merchantRequestId = result.MerchantRequestID ?? result.merchantRequestId;
-      if (!checkoutRequestId) throw new TRPCError({ code: "BAD_GATEWAY", message: "Daraja accepted no checkout request ID. No transaction was recorded." });
-      const recorded = await insertTransaction({ userId: ctx.user.id, checkoutRequestId, merchantRequestId: merchantRequestId ? String(merchantRequestId) : undefined, tillId: till ? Number(till.id) : null, accountReference, phoneNumber: input.phoneNumber, amount: input.amount, status: "PENDING" });
-      if (Number(recorded?.rowsAffected ?? 0) !== 1) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Daraja accepted the STK request, but LeeTec could not record it in Collections. Retry the request after checking the database connection." });
-      return { ...result, accountReference, checkoutRequestId, merchantRequestId: merchantRequestId ? String(merchantRequestId) : null, status: "PENDING" as const, requestRecorded: true, till: till ? { id: Number(till.id), number: String(till.tillNumber), name: String(till.name) } : null, estimatedPlatformFee: calculatePlatformFee(input.amount), estimatedNetAmount: Math.max(0, input.amount - calculatePlatformFee(input.amount)) };
+      const feeReservationReference = `STK_FEE_RES_${ctx.user.id}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const reservation = await reserveWalletFee({ userId: ctx.user.id, amount: input.amount, reference: feeReservationReference });
+      if (!reservation) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Insufficient wallet balance. Add at least KES ${calculatePlatformFee(input.amount).toFixed(2)} to cover the platform fee before sending this payment.` });
+      try {
+        const result = await triggerStkPush(config, { phoneNumber: input.phoneNumber, amount: input.amount, accountReference, transactionDesc: input.transactionDesc, callbackUrl: stkCallbackUrl(), partyB, transactionType: paymentType === "PAYBILL" ? "CustomerPayBillOnline" : "CustomerBuyGoodsOnline" });
+        const checkoutRequestId = String(result.CheckoutRequestID ?? result.checkoutRequestId ?? "");
+        const merchantRequestId = result.MerchantRequestID ?? result.merchantRequestId;
+        if (!checkoutRequestId) throw new TRPCError({ code: "BAD_GATEWAY", message: "Daraja accepted no checkout request ID. No transaction was recorded." });
+        const recorded = await insertTransaction({ userId: ctx.user.id, checkoutRequestId, merchantRequestId: merchantRequestId ? String(merchantRequestId) : undefined, tillId: till ? Number(till.id) : null, accountReference, phoneNumber: input.phoneNumber, amount: input.amount, status: "PENDING", feeReservationReference });
+        if (Number(recorded?.rowsAffected ?? 0) !== 1) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Daraja accepted the STK request, but LeeTec could not record it in Collections. Retry the request after checking the database connection." });
+        return { ...result, accountReference, checkoutRequestId, merchantRequestId: merchantRequestId ? String(merchantRequestId) : null, status: "PENDING" as const, requestRecorded: true, till: till ? { id: Number(till.id), number: String(till.tillNumber), name: String(till.name) } : null, estimatedPlatformFee: reservation.fee, estimatedNetAmount: Math.max(0, input.amount - reservation.fee) };
+      } catch (error) {
+        await releaseWalletFee({ userId: ctx.user.id, fee: reservation.fee, reference: reservation.reference, reason: "Released platform fee because the STK request was not accepted." });
+        throw error;
+      }
     }),
     depositWallet: protectedProcedure.input(z.object({ phoneNumber: phoneSchema, amount: z.number().positive().max(1500000) })).mutation(async ({ ctx, input }) => {
       const stored = await getStoredConfig(ctx.user.id);

@@ -765,3 +765,23 @@ html:not(.dark) .public-checkout-card { background: rgba(255,255,255,.94); box-s
   .admin-panel .modal-actions { display: grid; grid-template-columns: 1fr; gap: 8px; }
   .admin-panel .modal-actions button { width: 100%; min-height: 42px; }
 }
+
+.signup-credit-callout { display: flex; flex-direction: column; gap: 4px; margin: 16px 0 4px; padding: 12px 13px; border: 1px solid rgba(197,245,110,.28); border-radius: 9px; background: linear-gradient(135deg, rgba(197,245,110,.13), rgba(197,245,110,.035)); }
+.signup-credit-callout strong { color: var(--lime); font: 700 10px 'DM Mono', monospace; letter-spacing: .04em; }
+.signup-credit-callout span { color: #d7e5d1; font-size: 10px; line-height: 1.35; }
+.signup-credit-callout small { color: #829a86; font-size: 8px; }
+
+.how-it-works h2 { margin-top: 10px; color: #eef5eb; font-size: 22px; letter-spacing: -.7px; }
+.how-it-works-intro { margin-top: 7px; color: #8fa095; font-size: 10px; line-height: 1.5; }
+.how-steps { display: grid; gap: 12px; margin-top: 21px; }
+.how-steps > div { display: grid; grid-template-columns: 29px 1fr; column-gap: 10px; align-items: start; padding-bottom: 11px; border-bottom: 1px solid var(--line); }
+.how-steps > div:last-child { border-bottom: 0; padding-bottom: 0; }
+.how-steps > div > span { grid-row: span 2; display: grid; place-items: center; width: 27px; height: 27px; border: 1px solid rgba(197,245,110,.24); border-radius: 7px; color: var(--lime); font: 9px 'DM Mono', monospace; background: rgba(197,245,110,.07); }
+.how-steps strong { color: #d8e5db; font-size: 10px; }
+.how-steps small { margin-top: 3px; color: #71827b; font-size: 9px; line-height: 1.45; }
+.how-it-works-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 19px; border: 0; background: transparent; color: var(--lime); font-size: 10px; font-weight: 700; }
+
+.landing-share-visual { display: block; padding: 0; overflow: hidden; transform: rotate(1deg); border-color: rgba(197,245,110,.2); background: #071018; box-shadow: 0 28px 70px rgba(0,0,0,.32), 0 0 45px rgba(90,221,58,.07); }
+.landing-share-visual img { display: block; width: 100%; height: auto; aspect-ratio: 1200 / 630; object-fit: cover; }
+.landing-share-visual .console-glow { z-index: 0; }
+@media (max-width: 760px) { .landing-share-visual { width: 100%; transform: rotate(.5deg); } }

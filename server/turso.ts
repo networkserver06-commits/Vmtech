@@ -4,14 +4,14 @@ let client: Client | null = null;
 let initialized: Promise<void> | null = null;
 
 const schemaStatements = [
-  `CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, openId TEXT NOT NULL UNIQUE, accountId TEXT UNIQUE, username TEXT UNIQUE, name TEXT, email TEXT, loginMethod TEXT, role TEXT NOT NULL DEFAULT 'user', isSuspended INTEGER NOT NULL DEFAULT 0, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, lastSignedIn TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+  `CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, openId TEXT NOT NULL UNIQUE, accountId TEXT UNIQUE, username TEXT UNIQUE, name TEXT, email TEXT, loginMethod TEXT, role TEXT NOT NULL DEFAULT 'user', isSuspended INTEGER NOT NULL DEFAULT 0, signupBonusGranted INTEGER NOT NULL DEFAULT 0, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, lastSignedIn TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
   `CREATE TABLE IF NOT EXISTS wallets (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL UNIQUE, balance TEXT NOT NULL DEFAULT '0.00', currency TEXT NOT NULL DEFAULT 'KES', updatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
   `CREATE TABLE IF NOT EXISTS walletTransactions (id INTEGER PRIMARY KEY AUTOINCREMENT, walletId INTEGER NOT NULL, amount TEXT NOT NULL, type TEXT NOT NULL, reference TEXT NOT NULL UNIQUE, description TEXT NOT NULL, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
   `CREATE TABLE IF NOT EXISTS walletDeposits (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, checkoutRequestId TEXT NOT NULL UNIQUE, merchantRequestId TEXT, phoneNumber TEXT NOT NULL, amount TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'PENDING', mpesaReceipt TEXT, failureReason TEXT, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, settledAt TEXT)`,
   `CREATE TABLE IF NOT EXISTS mpesaConfigs (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL UNIQUE, shortcode TEXT NOT NULL DEFAULT '4208798', passkeyEncrypted TEXT NOT NULL, consumerKeyEncrypted TEXT NOT NULL, consumerSecretEncrypted TEXT NOT NULL, b2cInitiatorName TEXT, b2cInitiatorPasswordEncrypted TEXT, environment TEXT NOT NULL DEFAULT 'SANDBOX', createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
   `CREATE TABLE IF NOT EXISTS tills (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, tillNumber TEXT NOT NULL, name TEXT NOT NULL, location TEXT, paymentType TEXT NOT NULL DEFAULT 'BUY_GOODS', businessShortcode TEXT, isActive INTEGER NOT NULL DEFAULT 1, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(userId, tillNumber))`,
   `CREATE TABLE IF NOT EXISTS apiKeys (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, name TEXT NOT NULL, keyPrefix TEXT NOT NULL DEFAULT 'sk_live_', keyHash TEXT NOT NULL UNIQUE, isActive INTEGER NOT NULL DEFAULT 1, lastUsedAt TEXT, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
-  `CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, checkoutRequestId TEXT NOT NULL UNIQUE, merchantRequestId TEXT, mpesaReceipt TEXT, accountReference TEXT NOT NULL, phoneNumber TEXT NOT NULL, amount TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'PENDING', failureReason TEXT, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+  `CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, checkoutRequestId TEXT NOT NULL UNIQUE, merchantRequestId TEXT, mpesaReceipt TEXT, accountReference TEXT NOT NULL, phoneNumber TEXT NOT NULL, amount TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'PENDING', failureReason TEXT, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, feeReservedAt TEXT, feeReservationReference TEXT, platformFee TEXT NOT NULL DEFAULT '0.00', netAmount TEXT, feeChargedAt TEXT, feeReleasedAt TEXT)`,
   `CREATE TABLE IF NOT EXISTS payouts (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, recipientPhone TEXT NOT NULL, amount TEXT NOT NULL, commandId TEXT NOT NULL DEFAULT 'BusinessPayment', originatorConversationId TEXT UNIQUE, conversationId TEXT, mpesaReceipt TEXT, status TEXT NOT NULL DEFAULT 'PENDING', failureReason TEXT, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
   `CREATE TABLE IF NOT EXISTS payoutRequests (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, transactionId INTEGER NOT NULL, amount TEXT NOT NULL, destinationType TEXT NOT NULL, destination TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'REQUESTED', adminNote TEXT, approvedAmount TEXT, settledAt TEXT, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
   `CREATE TABLE IF NOT EXISTS webhookEndpoints (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, url TEXT NOT NULL, secretEncrypted TEXT NOT NULL, isActive INTEGER NOT NULL DEFAULT 1, createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
@@ -37,8 +37,10 @@ export async function getTurso() {
     initialized = client.batch(schemaStatements.map((sql) => ({ sql })), "write").then(async () => {
       const userColumns = await client!.execute("PRAGMA table_info(users)");
       const userNames = new Set(userColumns.rows.map((row) => String((row as unknown as { name: string }).name)));
-      const userAdditions = [["passwordHash", "TEXT"], ["emailVerified", "INTEGER NOT NULL DEFAULT 0"]] as const;
+      const userAdditions = [["passwordHash", "TEXT"], ["emailVerified", "INTEGER NOT NULL DEFAULT 0"], ["signupBonusGranted", "INTEGER NOT NULL DEFAULT 0"]] as const;
+      const signupBonusColumnWasAdded = !userNames.has("signupBonusGranted");
       for (const [name, type] of userAdditions) if (!userNames.has(name)) await client!.execute(`ALTER TABLE users ADD COLUMN ${name} ${type}`);
+      if (signupBonusColumnWasAdded) await client!.execute("UPDATE users SET signupBonusGranted = 1 WHERE signupBonusGranted = 0");
       if (!userNames.has("username")) await client!.execute("ALTER TABLE users ADD COLUMN username TEXT");
       const usersToName = await client!.execute("SELECT id, accountId, name FROM users WHERE username IS NULL OR trim(username) = '' ORDER BY id ASC");
       for (const row of usersToName.rows as unknown as Array<{ id: number; accountId: string | null; name: string | null }>) {
@@ -49,7 +51,7 @@ export async function getTurso() {
       await client!.execute("CREATE UNIQUE INDEX IF NOT EXISTS users_username_unique_idx ON users(username)");
       const transactionColumns = await client!.execute("PRAGMA table_info(transactions)");
       const transactionNames = new Set(transactionColumns.rows.map((row) => String((row as unknown as { name: string }).name)));
-      const transactionAdditions = [["tillId", "INTEGER"], ["platformFee", "TEXT NOT NULL DEFAULT '0.00'"], ["netAmount", "TEXT"], ["feeChargedAt", "TEXT"]] as const;
+      const transactionAdditions = [["tillId", "INTEGER"], ["platformFee", "TEXT NOT NULL DEFAULT '0.00'"], ["netAmount", "TEXT"], ["feeReservedAt", "TEXT"], ["feeReservationReference", "TEXT"], ["feeChargedAt", "TEXT"], ["feeReleasedAt", "TEXT"]] as const;
       for (const [name, type] of transactionAdditions) if (!transactionNames.has(name)) await client!.execute(`ALTER TABLE transactions ADD COLUMN ${name} ${type}`);
       const tillColumns = await client!.execute("PRAGMA table_info(tills)");
       const tillNames = new Set(tillColumns.rows.map((row) => String((row as unknown as { name: string }).name)));
