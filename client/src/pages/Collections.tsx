@@ -53,7 +53,11 @@ export default function Collections() {
     const payoutDestination = (tills.data ?? []).find((till) => Boolean(till.isActive) && Boolean(normalizePayoutDestination(String(till.payoutPhone ?? till.tillNumber ?? ""))));
     const destination = payoutDestination ? normalizePayoutDestination(String(payoutDestination.payoutPhone ?? payoutDestination.tillNumber)) : "";
     if (!destination) return showToast("Add a payout phone, Till, or PayBill number in Payout destinations before requesting payout.", "error");
-    requestPayoutForAll.mutate({ destinationType: /^254\d{9}$/.test(destination) ? "PHONE" : "TILL", destination });
+    const totalAmount = eligible.reduce((sum, row) => sum + row.amount, 0);
+    const destinationType = /^254\d{9}$/.test(destination) ? "PHONE" : "TILL";
+    const confirmed = window.confirm(`Confirm payout request\n\nCollections: ${eligible.length}\nTotal amount: ${formatAmount(totalAmount)}\nDestination: ${destinationType === "PHONE" ? "M-PESA phone" : "Till/PayBill"} ${destination}\n\nThis request will be sent to LeeTec admin for review. Continue?`);
+    if (!confirmed) return;
+    requestPayoutForAll.mutate({ destinationType, destination });
   };
   useEffect(() => { if (collections.data) setRows(collections.data.map((row) => ({ id: String(row.id), reference: String(row.checkoutRequestId ?? row.id), phone: String(row.phoneNumber ?? "—"), amount: Number(row.amount ?? 0), status: row.status === "SUCCESS" ? "Success" : row.status === "CANCELLED" ? "Cancelled" : row.status === "FAILED" ? "Failed" : "Pending", channel: String(row.checkoutRequestId ?? "").startsWith("C2B_") ? "C2B" : "STK Push", accountReference: String(row.accountReference ?? "—"), platformFee: row.platformFee == null ? undefined : Number(row.platformFee), netAmount: row.netAmount == null ? undefined : Number(row.netAmount), createdAt: new Date(String(row.createdAt)).toLocaleString("en-KE", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }), tillNumber: row.tillNumber ? String(row.tillNumber) : undefined, failureReason: row.failureReason ? String(row.failureReason) : undefined }))); }, [collections.data]);
   useEffect(() => {
