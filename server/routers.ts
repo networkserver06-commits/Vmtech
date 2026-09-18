@@ -28,6 +28,7 @@ export function normalizeKenyanPhone(value: string): string {
 
 const phoneSchema = z.string().trim().transform(normalizeKenyanPhone);
 const payoutDestinationSchema = z.string().trim().regex(/^(?:\d{5,8}|(?:254|0)(?:7|1)\d{8})$/, "Enter a Kenyan phone number or 5–8 digit Till/PayBill number").transform((value) => /^(?:254|0)(?:7|1)\d{8}$/.test(value) ? (value.startsWith("0") ? `254${value.slice(1)}` : value) : value);
+const tillOrPhoneSchema = z.string().trim().regex(/^(?:\d{5,8}|254(?:7|1)\d{8})$/, "Enter a phone number or 5–8 digit Till/PayBill number");
 const amountSchema = z.number().positive().max(1500000);
 const payoutRequestAmountSchema = z.number().min(50, "Minimum payout request is KES 50").max(1500000);
 
@@ -94,12 +95,12 @@ export const appRouter = router({
     revokeApiKey: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => revokeApiKey(ctx.user.id, input.id)),
     deleteApiKey: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => { const result = await deleteApiKey(ctx.user.id, input.id); if (Number(result?.rowsAffected ?? 0) !== 1) throw new TRPCError({ code: "NOT_FOUND", message: "API key was not found." }); return { success: true, id: input.id }; }),
     listTills: protectedProcedure.query(({ ctx }) => listTills(ctx.user.id)),
-    createTill: protectedProcedure.input(z.object({ tillNumber: z.string().regex(/^\d{5,8}$/, "Enter a valid M-PESA till or PayBill number"), name: z.string().min(2).max(80), location: z.string().max(120).optional(), paymentType: z.enum(["BUY_GOODS", "PAYBILL"]).default("BUY_GOODS"), businessShortcode: z.string().regex(/^\d{5,8}$/, "Enter a valid shortcode").optional(), payoutPhone: payoutDestinationSchema })).mutation(async ({ ctx, input }) => {
+    createTill: protectedProcedure.input(z.object({ tillNumber: tillOrPhoneSchema, name: z.string().min(2).max(80), location: z.string().max(120).optional(), paymentType: z.enum(["BUY_GOODS", "PAYBILL", "PHONE"]).default("BUY_GOODS"), businessShortcode: z.string().regex(/^\d{5,8}$/, "Enter a valid shortcode").optional(), payoutPhone: payoutDestinationSchema })).mutation(async ({ ctx, input }) => {
       const liveEnabled = process.env.MPESA_LIVE_ENABLED === "true" || process.env.MPESA_ENVIRONMENT === "PRODUCTION";
-      if (liveEnabled && input.tillNumber !== String(process.env.MPESA_PARTY_B ?? "").trim()) throw new TRPCError({ code: "BAD_REQUEST", message: "Only the approved production Buy Goods Till can be added while live payments are enabled." });
+      if (liveEnabled && input.paymentType !== "PHONE" && input.tillNumber !== String(process.env.MPESA_PARTY_B ?? "").trim()) throw new TRPCError({ code: "BAD_REQUEST", message: "Only the approved production Buy Goods Till can be added while live payments are enabled." });
       return createTill({ userId: ctx.user.id, ...input });
     }),
-    updateTill: protectedProcedure.input(z.object({ id: z.number().int().positive(), tillNumber: z.string().regex(/^\d{5,8}$/), name: z.string().min(2).max(80), location: z.string().max(120).optional(), isActive: z.boolean(), payoutPhone: payoutDestinationSchema })).mutation(({ ctx, input }) => updateTill(ctx.user.id, input.id, input)),
+    updateTill: protectedProcedure.input(z.object({ id: z.number().int().positive(), tillNumber: tillOrPhoneSchema, name: z.string().min(2).max(80), location: z.string().max(120).optional(), isActive: z.boolean(), payoutPhone: payoutDestinationSchema })).mutation(({ ctx, input }) => updateTill(ctx.user.id, input.id, input)),
     deleteTill: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteTill(ctx.user.id, input.id)),
     saveMpesaConfig: protectedProcedure.input(z.object({ shortcode: z.string().min(4).max(32).default("4208798"), consumerKey: z.string().min(1), consumerSecret: z.string().min(1), passkey: z.string().min(1), b2cInitiatorName: z.string().optional(), b2cInitiatorPassword: z.string().optional(), environment: z.enum(["SANDBOX", "PRODUCTION"]).default("SANDBOX") })).mutation(async ({ ctx, input }) => {
       await saveMpesaConfig({ userId: ctx.user.id, shortcode: input.shortcode, consumerKeyEncrypted: encryptSecret(input.consumerKey), consumerSecretEncrypted: encryptSecret(input.consumerSecret), passkeyEncrypted: encryptSecret(input.passkey), b2cInitiatorName: input.b2cInitiatorName, b2cInitiatorPasswordEncrypted: input.b2cInitiatorPassword ? encryptSecret(input.b2cInitiatorPassword) : null, environment: input.environment });
@@ -114,6 +115,7 @@ export const appRouter = router({
       // BusinessShortCode must remain the parent shortcode that owns the live STK credentials.
       // A selected child till is the Buy Goods destination and belongs in PartyB.
       const paymentType = till ? String(till.paymentType ?? "BUY_GOODS") : "BUY_GOODS";
+      if (paymentType === "PHONE") throw new TRPCError({ code: "BAD_REQUEST", message: "A phone-only destination is saved for payouts and cannot be used as a collection Till. Add a Buy Goods Till or PayBill destination for collections." });
       const approvedPartyB = liveEnabled ? String(process.env.MPESA_PARTY_B ?? "").trim() : "";
       if (liveEnabled && !approvedPartyB) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Production Buy Goods Till is not configured." });
       const partyB = till ? String(till.tillNumber) : approvedPartyB || baseConfig.shortcode;
