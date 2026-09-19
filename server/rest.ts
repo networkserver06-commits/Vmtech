@@ -2,7 +2,25 @@ import type { Express, Request, Response } from "express";
 import { appRouter } from "./routers.js";
 import { authenticateApiKey, getTransactionStatus, getUserByPaymentSlug, listTransactionHistory, markApiKeyUsed, recordC2bConfirmation, updateStkCallback } from "./db.js";
 import { hashApiKey } from "./security.js";
-import { getStkCallbackToken } from "./security.js";
+import { getC2bCallbackToken, getStkCallbackToken } from "./security.js";
+
+const paymentAttempts = new Map<string, { count: number; resetAt: number }>();
+const PAYMENT_WINDOW_MS = 60_000;
+const PAYMENT_LIMIT = 5;
+
+function allowPaymentAttempt(key: string) {
+  const current = paymentAttempts.get(key);
+  const now = Date.now();
+  if (!current || current.resetAt <= now) { paymentAttempts.set(key, { count: 1, resetAt: now + PAYMENT_WINDOW_MS }); return true; }
+  if (current.count >= PAYMENT_LIMIT) return false;
+  current.count += 1;
+  return true;
+}
+
+function callbackTokenMatches(req: Request, expected: string) {
+  const supplied = String(req.query.callbackToken ?? req.header("x-callback-token") ?? "");
+  return supplied.length > 0 && supplied === expected;
+}
 
 async function authenticate(req: Request, res: Response) {
   const raw = req.header("x-api-key") || req.header("authorization")?.replace(/^Bearer\s+/i, "");
@@ -38,6 +56,8 @@ export function registerRestRoutes(app: Express) {
     try {
       const slug = String(req.query.slug ?? "").trim().toLowerCase();
       if (!slug) return res.status(400).json({ error: "A username payment link is required" });
+      const ip = req.ip || req.socket.remoteAddress || "unknown";
+      if (!allowPaymentAttempt(`${ip}:${slug}`)) return res.status(429).json({ error: "Too many payment attempts. Please wait a minute before trying again." });
       const user = await getUserByPaymentSlug(slug);
       if (!user || user.isSuspended) return res.status(404).json({ error: "Payment link is unavailable" });
       const caller = appRouter.createCaller({ user, req: req as never, res: res as never });
@@ -65,7 +85,9 @@ export function registerRestRoutes(app: Express) {
     catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "STK Push failed", status: "ERROR", final: true, webhookRequired: false, message: "The STK request was not accepted and no payment record was created. Correct the error and retry." }); }
   });
   app.post("/api/v1/callbacks/stk", async (req, res) => {
-    if (req.query.callbackToken !== getStkCallbackToken()) return res.status(401).json({ ResultCode: 1, ResultDesc: "Unauthorized callback" });
+    let expected: string;
+    try { expected = getStkCallbackToken(); } catch { return res.status(503).json({ ResultCode: 1, ResultDesc: "Callback authentication is not configured" }); }
+    if (!callbackTokenMatches(req, expected)) return res.status(401).json({ ResultCode: 1, ResultDesc: "Unauthorized callback" });
     const callback = req.body?.Body?.stkCallback;
     res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" });
     if (!callback?.CheckoutRequestID) return;
@@ -83,6 +105,18 @@ export function registerRestRoutes(app: Express) {
       await updateStkCallback({ checkoutRequestId: String(callback.CheckoutRequestID), success, status: callbackStatus, failureReason, receipt: typeof receipt === "string" || typeof receipt === "number" ? String(receipt) : null, paidAmount: Number.isFinite(paidAmount) ? paidAmount : null, paidPhoneNumber: paidPhoneNumber == null ? null : String(paidPhoneNumber) });
     })().catch((error) => console.error("STK callback processing failed", error));
   });
-  app.post("/api/v1/callbacks/c2b/confirmation", async (req, res) => { const body = req.body ?? {}; res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" }); void recordC2bConfirmation({ tillNumber: String(body.BusinessShortCode ?? body.ShortCode ?? ""), transactionId: String(body.TransID ?? ""), amount: Number(body.TransAmount ?? 0), phoneNumber: String(body.MSISDN ?? ""), accountReference: String(body.BillRefNumber ?? body.InvoiceNumber ?? "") }).catch((error) => console.error("C2B confirmation processing failed", error)); });
-  app.post("/api/v1/callbacks/c2b/validation", async (_req, res) => res.json({ ResultCode: 0, ResultDesc: "Accepted" }));
+  app.post("/api/v1/callbacks/c2b/confirmation", async (req, res) => {
+    let expected: string;
+    try { expected = getC2bCallbackToken(); } catch { return res.status(503).json({ ResultCode: 1, ResultDesc: "C2B callback authentication is not configured" }); }
+    if (!callbackTokenMatches(req, expected)) return res.status(401).json({ ResultCode: 1, ResultDesc: "Unauthorized callback" });
+    const body = req.body ?? {};
+    res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" });
+    void recordC2bConfirmation({ tillNumber: String(body.BusinessShortCode ?? body.ShortCode ?? ""), transactionId: String(body.TransID ?? ""), amount: Number(body.TransAmount ?? 0), phoneNumber: String(body.MSISDN ?? ""), accountReference: String(body.BillRefNumber ?? body.InvoiceNumber ?? "") }).catch((error) => console.error("C2B confirmation processing failed", error));
+  });
+  app.post("/api/v1/callbacks/c2b/validation", async (req, res) => {
+    let expected: string;
+    try { expected = getC2bCallbackToken(); } catch { return res.status(503).json({ ResultCode: 1, ResultDesc: "C2B callback authentication is not configured" }); }
+    if (!callbackTokenMatches(req, expected)) return res.status(401).json({ ResultCode: 1, ResultDesc: "Unauthorized callback" });
+    return res.json({ ResultCode: 0, ResultDesc: "Accepted" });
+  });
 }

@@ -24,7 +24,25 @@ export function hashApiKey(rawKey: string) {
 }
 
 export function getStkCallbackToken() {
-  return createHmac("sha256", process.env.JWT_SECRET || "change-this-session-secret").update("leetec-stk-callback-v1").digest("hex");
+  const secret = process.env.STK_CALLBACK_SECRET?.trim();
+  if (!secret || secret.length < 32) throw new Error("STK_CALLBACK_SECRET must be configured with at least 32 characters");
+  return createHmac("sha256", secret).update("leetec-stk-callback-v1").digest("hex");
+}
+
+export function getC2bCallbackToken() {
+  const secret = process.env.C2B_CALLBACK_SECRET?.trim();
+  if (!secret || secret.length < 32) throw new Error("C2B_CALLBACK_SECRET must be configured with at least 32 characters");
+  return createHmac("sha256", secret).update("leetec-c2b-callback-v1").digest("hex");
+}
+
+export function safeWebhookUrl(value: string) {
+  const url = new URL(value);
+  const hostname = url.hostname.toLowerCase();
+  if (url.protocol !== "https:") throw new Error("Webhook URL must use HTTPS");
+  if (url.username || url.password || url.port && !["443", ""].includes(url.port)) throw new Error("Webhook URL must not contain credentials or a non-HTTPS port");
+  if (["localhost", "localhost.localdomain", "metadata.google.internal"].includes(hostname) || hostname.endsWith(".local") || hostname.endsWith(".internal")) throw new Error("Webhook URL cannot target a local or internal hostname");
+  if (/^(127\.|10\.|192\.168\.|169\.254\.|172\.(?:1[6-9]|2\d|3[0-1])\.)/.test(hostname) || hostname === "::1" || hostname.startsWith("fc") || hostname.startsWith("fd")) throw new Error("Webhook URL cannot target a private network address");
+  return url.toString();
 }
 
 export function generateApiKey() {

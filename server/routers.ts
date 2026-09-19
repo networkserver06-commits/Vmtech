@@ -6,7 +6,7 @@ import { systemRouter } from "./_core/systemRouter.js";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc.js";
 import { isConfiguredAdminEmail } from "./_core/env.js";
 import { adjustWallet, calculatePlatformFee, createCollection, createPayout, createPayoutRequest, createPayoutRequestsForAll, createReservedPayout, createTill, createWebhook, deleteApiKey, deleteCollection, deletePayout, deleteTill, deleteWebhook, getAdminOverview, getOverviewData, getPayoutRequest, getStoredMpesaConfig, getSystemSettings, getTill, getWalletBalance, insertApiKey, insertTransaction, insertWalletDeposit, listAdminPayoutRequests, listAdminUsers, listApiKeys, listAuditLogs, listCollections, listPayoutRequests, listPayouts, listTills, listUserWalletLedger, listWalletDeposits, listWalletLedger, listWebhooks, releaseWalletFee, reserveWalletFee, revokeApiKey, saveMpesaConfig, setUserSuspended, testWebhook, updateCollection, updatePayout, updatePayoutRequestStatus, updateTill, updateUserProfile, writeAuditLog } from "./db.js";
-import { createSecurityCredential, encryptSecret, generateApiKey, generatePrefixedReference, getStkCallbackToken, hashApiKey } from "./security.js";
+import { createSecurityCredential, encryptSecret, generateApiKey, generatePrefixedReference, getC2bCallbackToken, getStkCallbackToken, hashApiKey, safeWebhookUrl } from "./security.js";
 import { encryptedConfigToDaraja, registerC2bUrls, triggerStkPush } from "./mpesa.js";
 import { changePassword } from "./emailAuth.js";
 import { notifyAdminsOfPayoutRequest, notifyUserOfPayoutStatus } from "./email.js";
@@ -68,11 +68,11 @@ export const appRouter = router({
     requestPayout: protectedProcedure.input(z.object({ transactionId: z.number().int().positive(), amount: payoutRequestAmountSchema, destinationType: z.enum(["PHONE", "TILL"]), destination: payoutRequestDestinationSchema })).mutation(async ({ ctx, input }) => {
       const result = await createPayoutRequest({ userId: ctx.user.id, ...input });
       await writeAuditLog({ userId: ctx.user.id, action: "PAYOUT_REQUESTED", details: { payoutRequestId: result.id, transactionId: input.transactionId, amount: input.amount, destinationType: input.destinationType, destination: input.destination, email: ctx.user.email } });
-      try { await notifyAdminsOfPayoutRequest({ userName: ctx.user.name || "LeeTec customer", userEmail: ctx.user.email || "Unknown email", amount: input.amount, destinationType: input.destinationType, destination: input.destination }); } catch { /* payout requests remain valid if notification delivery is temporarily unavailable */ }
-      try { await notifyUserOfPayoutStatus(ctx.user.email || "", { userName: ctx.user.name || "LeeTec customer", amount: input.amount, destinationType: input.destinationType, destination: input.destination, status: "REQUESTED" }); } catch { /* payout requests remain valid if notification delivery is temporarily unavailable */ }
+      try { await notifyAdminsOfPayoutRequest({ userName: ctx.user.name || "LeeTec customer", userEmail: ctx.user.email || "Unknown email", amount: Number(result.amount ?? input.amount), destinationType: input.destinationType, destination: input.destination }); } catch { /* payout requests remain valid if notification delivery is temporarily unavailable */ }
+      try { await notifyUserOfPayoutStatus(ctx.user.email || "", { userName: ctx.user.name || "LeeTec customer", amount: Number(result.amount ?? input.amount), destinationType: input.destinationType, destination: input.destination, status: "REQUESTED" }); } catch { /* payout requests remain valid if notification delivery is temporarily unavailable */ }
       return result;
     }),
-    requestPayoutForAll: protectedProcedure.input(z.object({ destinationType: z.enum(["PHONE", "TILL"]), destination: payoutRequestDestinationSchema })).mutation(async ({ ctx, input }) => {
+    requestPayoutForAll: protectedProcedure.input(z.object({ amount: payoutRequestAmountSchema.default(50), destinationType: z.enum(["PHONE", "TILL"]), destination: payoutRequestDestinationSchema })).mutation(async ({ ctx, input }) => {
       const result = await createPayoutRequestsForAll({ userId: ctx.user.id, ...input });
       if (!result.count) throw new TRPCError({ code: "BAD_REQUEST", message: "No eligible successful collections are available for payout. Collections must be successful, at least KES 50, and not already requested." });
       await writeAuditLog({ userId: ctx.user.id, action: "PAYOUT_REQUESTED_FOR_ALL_COLLECTIONS", details: { ...input, count: result.count, totalAmount: result.totalAmount, email: ctx.user.email } });
@@ -89,8 +89,8 @@ export const appRouter = router({
     deletePayout: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deletePayout(ctx.user.id, input.id)),
     createApiKey: protectedProcedure.input(z.object({ name: z.string().min(2).max(100) })).mutation(async ({ ctx, input }) => {
       const rawKey = generateApiKey();
-      await insertApiKey({ userId: ctx.user.id, name: input.name, keyHash: hashApiKey(rawKey), keyEncrypted: encryptSecret(rawKey) });
-      return { key: rawKey, keyPrefix: "sk_live_", revealedOnce: true, recoverable: true };
+      await insertApiKey({ userId: ctx.user.id, name: input.name, keyHash: hashApiKey(rawKey) });
+      return { key: rawKey, keyPrefix: "sk_live_", revealedOnce: true, recoverable: false };
     }),
     listApiKeys: protectedProcedure.query(({ ctx }) => listApiKeys(ctx.user.id)),
     revokeApiKey: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => revokeApiKey(ctx.user.id, input.id)),
@@ -172,10 +172,13 @@ export const appRouter = router({
       const till = input.tillId ? await getTill(ctx.user.id, input.tillId) : undefined;
       if (input.tillId && (!till || !Boolean(till.isActive))) throw new TRPCError({ code: "BAD_REQUEST", message: "Selected till is not active or does not belong to this account" });
       const config = till ? { ...baseConfig, shortcode: String(till.tillNumber) } : baseConfig;
-      return registerC2bUrls(config, input);
+      let callbackToken: string;
+      try { callbackToken = getC2bCallbackToken(); } catch { throw new TRPCError({ code: "PRECONDITION_FAILED", message: "C2B_CALLBACK_SECRET must be configured before registering callbacks." }); }
+      const withToken = (value: string) => { const url = new URL(value); url.searchParams.set("callbackToken", callbackToken); return url.toString(); };
+      return registerC2bUrls(config, { ...input, confirmationUrl: withToken(input.confirmationUrl), validationUrl: withToken(input.validationUrl) });
     }),
     listWebhooks: protectedProcedure.query(({ ctx }) => listWebhooks(ctx.user.id)),
-    createWebhook: protectedProcedure.input(z.object({ url: z.string().trim().url().refine((value) => /^https?:\/\//i.test(value), "Webhook URL must use HTTP or HTTPS"), secret: z.string().trim().min(16).max(200) })).mutation(async ({ ctx, input }) => { const result = await createWebhook({ userId: ctx.user.id, url: input.url, secretEncrypted: encryptSecret(input.secret) }); return { success: true, id: Number(result?.lastInsertRowid ?? 0), url: input.url, message: "Webhook endpoint added. Use Test delivery to verify your client response." }; }),
+    createWebhook: protectedProcedure.input(z.object({ url: z.string().trim().url().transform((value) => safeWebhookUrl(value)), secret: z.string().trim().min(16).max(200) })).mutation(async ({ ctx, input }) => { const result = await createWebhook({ userId: ctx.user.id, url: input.url, secretEncrypted: encryptSecret(input.secret) }); return { success: true, id: Number(result?.lastInsertRowid ?? 0), url: input.url, message: "Webhook endpoint added. Use Test delivery to verify your client response." }; }),
     testWebhook: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => { const result = await testWebhook(ctx.user.id, input.id); if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "Webhook endpoint was not found or is inactive." }); return { ...result, message: result.status === "DELIVERED" ? "Webhook client responded successfully." : `Webhook client did not respond with 2xx (HTTP ${result.statusCode || "network error"}).` }; }),
     deleteWebhook: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteWebhook(ctx.user.id, input.id)),
   }),
