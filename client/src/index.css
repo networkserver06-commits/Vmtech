@@ -939,7 +939,7 @@ html:not(.dark) .public-checkout-card { background: rgba(255,255,255,.94); box-s
 }
 
 /* Complete light theme: follows the user's operating-system appearance setting. */
-@media (prefers-color-scheme: light) {
+html:not(.dark) {
   :root {
     color-scheme: light;
     --bg: #f5f8f6;
@@ -1043,7 +1043,7 @@ html:not(.dark) .public-checkout-card { background: rgba(255,255,255,.94); box-s
 }
 
 /* Light theme balance pass: reduce white glare and preserve secondary-detail contrast. */
-@media (prefers-color-scheme: light) {
+html:not(.dark) {
   :root {
     --bg: #edf3ef;
     --surface: #f8fbf9;
@@ -1087,7 +1087,7 @@ html:not(.dark) .public-checkout-card { background: rgba(255,255,255,.94); box-s
 }
 
 /* Light-theme tab and metadata contrast pass. */
-@media (prefers-color-scheme: light) {
+html:not(.dark) {
   .nav-item { color: #294337; font-weight: 600; }
   .nav-item svg { color: #557267; }
   .nav-item:hover svg, .nav-item.active svg { color: #3f7810; }
@@ -1130,7 +1130,7 @@ html:not(.dark) .public-checkout-card { background: rgba(255,255,255,.94); box-s
 }
 
 /* Light-theme action controls: make copy, reveal, delete, and row actions unmistakable. */
-@media (prefers-color-scheme: light) {
+html:not(.dark) {
   .icon-button { display: inline-grid; place-items: center; min-width: 34px; min-height: 34px; padding: 7px; border: 1px solid #9eb5a8; border-radius: 7px; color: #315744; background: #e2eee7; cursor: pointer; transition: color .16s ease, border-color .16s ease, background .16s ease, transform .16s ease; }
   .icon-button:hover, .icon-button:focus-visible { color: #245c0a; border-color: #6da934; background: #d7ebcf; }
   .icon-button:active { transform: scale(.94); }
