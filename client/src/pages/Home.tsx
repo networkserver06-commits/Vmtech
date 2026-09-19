@@ -51,6 +51,7 @@ const navGroups = [
     items: [
       { label: "Overview", icon: LayoutDashboard },
       { label: "Collections", icon: ArrowDownLeft },
+      { label: "Payouts", icon: Send },
       { label: "Wallet", icon: WalletCards },
       { label: "Payment links", icon: Link2 },
     ],
@@ -240,6 +241,7 @@ export default function Home() {
     setActiveNav(label);
     setMobileOpen(false);
     if (label === "Collections") navigate("/collections?from=dashboard");
+    if (label === "Payouts") navigate("/payouts");
     if (label === "Documentation") navigate("/docs");
     if (label === "Payment links") setPaymentLink(null);
     notify(`${label} opened`);
