@@ -1041,3 +1041,47 @@ html:not(.dark) .public-checkout-card { background: rgba(255,255,255,.94); box-s
   .profile-row { border-color: var(--line); }
   .line, hr { border-color: var(--line); }
 }
+
+/* Light theme balance pass: reduce white glare and preserve secondary-detail contrast. */
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #edf3ef;
+    --surface: #f8fbf9;
+    --surface-2: #e8f0eb;
+    --surface-3: #dce8e1;
+    --line: #c5d4cb;
+    --line-strong: #9eb5a8;
+    --muted: #42564c;
+    --muted-2: #61766b;
+    --text: #14231b;
+  }
+  .app-shell, .landing-page, .login-page, .docs-page, .documentation-page { background: radial-gradient(ellipse at 78% -10%, rgba(79,143,22,.11), transparent 32%), var(--bg); }
+  .sidebar, .topbar, .landing-nav { background: rgba(240,246,242,.96); }
+  .workspace-switcher, .panel, .metric-card, .feature-card, .payout-history-box, .payout-command-panel, .payout-metrics-grid > div, .login-card, .auth-state-card, .crud-modal, .modal-card, .docs-card, .docs-code-block, .docs-endpoint, .documentation-card { border-color: #c5d4cb; background: var(--surface); box-shadow: 0 9px 24px rgba(34,65,48,.09); }
+  .workspace-switcher:hover, .feature-card:hover { background: #fbfdfc; border-color: #8eae99; }
+  .data-table td { background: #f8fbf9; }
+  .data-table th { background: #e5eee8; color: #30483b; }
+  .data-table tr:hover td { background: #edf6f0; }
+  input, select, textarea, .search-wrap input, .payout-entry select, .payout-entry input, .payout-all-box input { background: #f8fbf9; border-color: #9eb5a8; }
+  input:hover, select:hover, textarea:hover { border-color: #759985; }
+  .secondary-button, .period-select { background: #e6eee9; border-color: #9eb5a8; color: #263f32; }
+  .secondary-button:hover { background: #dce9e1; }
+  .hero-strip, .payout-hero-note, .payout-all-box { background: linear-gradient(105deg, #e2efdb, #f3f8f4 62%, #e1eee6); border-color: #b2cba3; }
+  .landing-share-visual { background: #dce9e1; border-color: #aec6b7; }
+  .section-heading p, .landing-hero-copy > p, .landing-band-copy p, .landing-api-band p { color: #42584d; }
+  .page-heading p, .panel-heading p, .feature-card p, .payout-history-heading p, .payout-command-heading p, .quick-list small { color: #4b6256; }
+  .nav-label, .eyebrow, .breadcrumbs, .search-wrap, .top-profile, .metric-top, .metric-bottom, .chart-axis, .legend span { color: #42584d; }
+  .nav-item { color: #30483b; }
+  .nav-item:hover { color: #152b20; background: #dfece4; }
+  .nav-count, .search-wrap kbd { color: #40584c; background: #dbe7e0; border-color: #bdcec3; }
+  .quick-list button { color: #40584c; }
+  .quick-list strong { color: #263f32; }
+  .feature-card h3, .panel-heading h3, .payout-command-heading h2, .payout-history-heading h3 { color: #142c20; }
+  .metric-value, .chart-summary strong { color: #10271b; }
+  .metric-value span { color: #496158; }
+  .metric-bottom, .progress-caption, .chart-axis { color: #52695d; }
+  .payout-destination-chip { background: #e7f0ea; border-color: #b0c5b8; }
+  .payout-destination-chip span, .payout-destination-chip small { color: #52695d; }
+  .feedback-toast { background: #d8efad; border-color: #94bc5f; }
+  .landing-footer, .landing-footer > span { color: #42584d; }
+}
