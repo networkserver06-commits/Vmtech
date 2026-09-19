@@ -116,7 +116,7 @@ async function reconcileSuccessfulStkFees(userId: number) {
   const rows = asRows<TursoRow>(await db.execute({ sql: "SELECT id, amount FROM transactions WHERE userId = ? AND status = 'SUCCESS' AND checkoutRequestId NOT LIKE 'C2B_%' AND (feeChargedAt IS NULL OR platformFee IS NULL) ORDER BY id ASC LIMIT 200", args: [userId] }));
   for (const row of rows) {
     const amount = Number(row.amount ?? 0); const fee = calculatePlatformFee(amount); const net = Math.max(0, amount - fee); const reference = `STK_FEE_${String(row.id)}`;
-    const claimed = await db.execute({ sql: "UPDATE transactions SET platformFee = ?, netAmount = ?, feeChargedAt = ? WHERE id = ? AND userId = ? AND status = 'SUCCESS' AND feeChargedAt IS NULL", args: [fee.toFixed(2), net.toFixed(2), now(), Number(row.id), userId] });
+    const claimed = await db.execute({ sql: "UPDATE transactions SET platformFee = ?, netAmount = ?, feeChargedAt = ? WHERE id = ? AND userId = ? AND status = 'SUCCESS' AND feeChargedAt IS NULL AND NOT EXISTS (SELECT 1 FROM walletTransactions wt JOIN wallets w ON w.id = wt.walletId WHERE w.userId = ? AND wt.reference = ?)", args: [fee.toFixed(2), net.toFixed(2), now(), Number(row.id), userId, userId, reference] });
     if (Number(claimed.rowsAffected ?? 0) !== 1) continue;
     await db.execute({ sql: "INSERT OR IGNORE INTO wallets (userId, balance) VALUES (?, '0.00')", args: [userId] });
     const charged = await db.execute({ sql: "UPDATE wallets SET balance = CAST(balance AS REAL) - ?, updatedAt = ? WHERE userId = ? AND CAST(balance AS REAL) >= ?", args: [fee.toFixed(2), now(), userId, fee.toFixed(2)] });
@@ -239,7 +239,7 @@ export async function dispatchUserWebhooks(userId: number, event: string, data: 
 }
 export async function authenticateApiKey(keyHash: string) { const result = await execute({ sql: "SELECT a.id AS apiKeyId, a.userId AS apiUserId, u.id, u.openId, u.accountId, u.name, u.email, u.loginMethod, u.passwordHash, u.emailVerified, u.role, u.isSuspended, u.createdAt, u.updatedAt, u.lastSignedIn FROM apiKeys a JOIN users u ON u.id = a.userId WHERE a.keyHash = ? AND a.isActive = 1 LIMIT 1", args: [keyHash] }); const row = result ? asRows<TursoRow>(result)[0] : undefined; return row ? { keyId: Number(row.apiKeyId), user: userFromRow(row) } : null; }
 export async function markApiKeyUsed(keyId: number) { return execute({ sql: "UPDATE apiKeys SET lastUsedAt = ? WHERE id = ?", args: [now(), keyId] }); }
-export function calculatePlatformFee(amount: number) { return amount >= 1 && amount <= 50 ? 1 : Math.round(amount * 0.015 * 100) / 100; }
+export function calculatePlatformFee(amount: number) { if (!Number.isFinite(amount) || amount <= 0) return 0; return amount <= 50 ? 1 : Math.round(amount * 0.015 * 100) / 100; }
 export async function reserveWalletFee(input: { userId: number; amount: number; reference: string }) {
   const db = await getTurso(); if (!db) throw new Error("Database is not configured");
   const fee = calculatePlatformFee(input.amount); const timestamp = now();
@@ -258,7 +258,7 @@ export async function releaseWalletFee(input: { userId: number; fee: number; ref
   const db = await getTurso(); if (!db) return null;
   const releaseReference = `${input.reference}_RELEASE`;
   return db.batch([
-    { sql: "UPDATE wallets SET balance = CAST(balance AS REAL) + ?, updatedAt = ? WHERE userId = ?", args: [input.fee.toFixed(2), now(), input.userId] },
+    { sql: "UPDATE wallets SET balance = CAST(balance AS REAL) + ?, updatedAt = ? WHERE userId = ? AND NOT EXISTS (SELECT 1 FROM walletTransactions WHERE reference = ?)", args: [input.fee.toFixed(2), now(), input.userId, releaseReference] },
     { sql: "INSERT OR IGNORE INTO walletTransactions (walletId, amount, type, reference, description) SELECT id, ?, 'PLATFORM_FEE_RELEASE', ?, ? FROM wallets WHERE userId = ?", args: [input.fee.toFixed(2), releaseReference, input.reason, input.userId] },
     { sql: "UPDATE transactions SET feeReleasedAt = ? WHERE feeReservationReference = ? AND feeReleasedAt IS NULL", args: [now(), input.reference] },
   ], "write");

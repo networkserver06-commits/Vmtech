@@ -8,6 +8,7 @@ export type User = {
   loginMethod: string | null;
   passwordHash?: string | null;
   emailVerified?: boolean;
+  signupBonusGranted?: boolean;
   role: string;
   isSuspended: boolean;
   createdAt: Date;
