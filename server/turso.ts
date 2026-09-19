@@ -57,6 +57,9 @@ export async function getTurso() {
       const tillNames = new Set(tillColumns.rows.map((row) => String((row as unknown as { name: string }).name)));
       const tillAdditions = [["paymentType", "TEXT NOT NULL DEFAULT 'BUY_GOODS'"], ["businessShortcode", "TEXT"], ["payoutPhone", "TEXT"]] as const;
       for (const [name, type] of tillAdditions) if (!tillNames.has(name)) await client!.execute(`ALTER TABLE tills ADD COLUMN ${name} ${type}`);
+      const apiKeyColumns = await client!.execute("PRAGMA table_info(apiKeys)");
+      const apiKeyNames = new Set(apiKeyColumns.rows.map((row) => String((row as unknown as { name: string }).name)));
+      if (!apiKeyNames.has("keyEncrypted")) await client!.execute("ALTER TABLE apiKeys ADD COLUMN keyEncrypted TEXT");
       const payoutRequestColumns = await client!.execute("PRAGMA table_info(payoutRequests)");
       const payoutRequestNames = new Set(payoutRequestColumns.rows.map((row) => String((row as unknown as { name: string }).name)));
       const payoutRequestAdditions = [["approvedAmount", "TEXT"], ["settledAt", "TEXT"]] as const;
