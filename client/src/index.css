@@ -1128,3 +1128,34 @@ html:not(.dark) .public-checkout-card { background: rgba(255,255,255,.94); box-s
   .modal-kicker { color: #467b18; }
   .note-shield { color: #fff; background: #4f8f16; }
 }
+
+/* Light-theme action controls: make copy, reveal, delete, and row actions unmistakable. */
+@media (prefers-color-scheme: light) {
+  .icon-button { display: inline-grid; place-items: center; min-width: 34px; min-height: 34px; padding: 7px; border: 1px solid #9eb5a8; border-radius: 7px; color: #315744; background: #e2eee7; cursor: pointer; transition: color .16s ease, border-color .16s ease, background .16s ease, transform .16s ease; }
+  .icon-button:hover, .icon-button:focus-visible { color: #245c0a; border-color: #6da934; background: #d7ebcf; }
+  .icon-button:active { transform: scale(.94); }
+  .icon-button.subtle { color: #315744; background: #e2eee7; }
+  .icon-button.subtle svg { stroke-width: 2.3; }
+  .code-block { color: #356b0e; border-color: #a8c1b0; background: #e2ece6; box-shadow: inset 0 1px 0 rgba(255,255,255,.5); }
+  .docs-code-block .icon-button { flex: 0 0 auto; }
+  .row-actions { display: flex; align-items: center; gap: 6px; }
+  .row-actions button, .row-more { display: inline-grid; place-items: center; min-width: 32px; min-height: 32px; padding: 6px; border: 1px solid #b0c4b8; border-radius: 7px; color: #476457; background: #e2eee7; }
+  .row-actions button:hover, .row-more:hover, .row-actions button:focus-visible, .row-more:focus-visible { color: #245c0a; border-color: #6da934; background: #d7ebcf; }
+  .row-actions button:last-child { color: #a33245; border-color: #e0b2bb; background: #fcecef; }
+  .row-actions button:last-child:hover, .row-actions button:last-child:focus-visible { color: #8d1e34; border-color: #c95769; background: #f8dbe1; }
+  .danger-button { color: #9b2439; border-color: #d99aa7; background: #fdebef; font-weight: 800; }
+  .danger-button:hover, .danger-button:focus-visible { color: #86192e; border-color: #bd5367; background: #f8d9df; }
+  .danger-button:disabled { color: #8b8f8d; border-color: #c7d0cb; background: #e7ece9; }
+  .key-history-actions { gap: 7px; }
+  .key-history-actions .icon-button, .key-history-actions .secret-toggle { min-width: 31px; min-height: 31px; padding: 6px; border: 1px solid #b0c4b8; border-radius: 7px; background: #e2eee7; }
+  .key-history-actions .secret-toggle { display: inline-grid; place-items: center; color: #315744; }
+  .key-history-actions .secret-toggle:hover, .key-history-actions .secret-toggle:focus-visible { color: #245c0a; border-color: #6da934; background: #d7ebcf; }
+  .key-delete-button { min-height: 31px; padding-inline: 10px; }
+  .key-warning { color: #4a6256; border-color: #c2d2c8; background: #e9f1ec; }
+  .key-warning svg { color: #467b18; }
+  .generated-link-actions .icon-button { min-width: 36px; min-height: 36px; }
+  .modal-heading > button { min-width: 32px; min-height: 32px; border: 1px solid #b0c4b8; border-radius: 7px; color: #476457; background: #e2eee7; }
+  .modal-heading > button:hover, .modal-heading > button:focus-visible { color: #8d1e34; border-color: #d99aa7; background: #fcecef; }
+  .settings-note { color: #456054; border-color: #c2d2c8; background: #e9f1ec; }
+  .settings-note svg { color: #467b18; }
+}
