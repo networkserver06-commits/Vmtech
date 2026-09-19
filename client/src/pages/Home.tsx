@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import SiteFooter from "@/components/SiteFooter";
+import FeedbackToast from "@/components/FeedbackToast";
 import { useLocation } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import {
@@ -416,7 +417,7 @@ export default function Home() {
         <a href="https://wa.me/254116553618" target="_blank" rel="noreferrer"><CircleHelp size={20} /><span>WhatsApp</span></a>
         <button onClick={() => notify("Settings are available from the dashboard workspace menu")}><Settings2 size={20} /><span>Settings</span></button>
       </nav>
-      {toast && <div className={`toast ${toastTone === "error" ? "toast-error" : "toast-success"}`} role="alert">{toastTone === "error" ? <XCircle size={16} /> : <CheckCircle2 size={16} />} {toast}</div>}
+      {toast && <FeedbackToast message={toast} tone={toastTone} onDismiss={() => setToast(null)} />}
     </div>
   );
 }

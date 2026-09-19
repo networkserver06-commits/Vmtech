@@ -880,3 +880,16 @@ html:not(.dark) .public-checkout-card { background: rgba(255,255,255,.94); box-s
 .history-destination { color: var(--muted); font: 10px 'DM Mono', monospace; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 850px) { .payout-metrics-grid { grid-template-columns: repeat(2, 1fr); } .payout-hero-note { align-items: stretch; flex-direction: column; } .payout-destination-chip { min-width: 0; } .payout-single-form { grid-template-columns: 1fr 1fr; } .payout-single-form button { grid-column: 1 / -1; } }
 @media (max-width: 560px) { .payout-metrics-grid { grid-template-columns: 1fr 1fr; gap: 8px; } .payout-metrics-grid > div { padding: 12px; min-height: 100px; } .payout-metrics-grid strong { font-size: 16px; } .payout-command-form, .payout-single-form { grid-template-columns: 1fr; } .payout-single-form button { grid-column: auto; } }
+
+.feedback-toast { position: fixed; right: max(18px, env(safe-area-inset-right)); bottom: max(22px, env(safe-area-inset-bottom)); z-index: 100; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 11px; width: min(560px, calc(100vw - 36px)); min-height: 54px; padding: 13px 14px; overflow: hidden; border: 1px solid rgba(197,245,110,.46); border-radius: 11px; color: #15210d; background: #c5f56e; box-shadow: 0 16px 42px rgba(0,0,0,.38), 0 0 0 1px rgba(255,255,255,.05) inset; animation: feedback-toast-in .22s cubic-bezier(.2,.8,.2,1); }
+.feedback-toast > svg { flex-shrink: 0; }
+.feedback-toast-message { min-width: 0; color: inherit; font-size: 11px; font-weight: 700; line-height: 1.45; overflow-wrap: anywhere; }
+.feedback-toast-close { display: grid; place-items: center; width: 28px; height: 28px; flex-shrink: 0; border: 0; border-radius: 7px; color: inherit; background: rgba(0,0,0,.09); cursor: pointer; }
+.feedback-toast-close:hover, .feedback-toast-close:focus-visible { background: rgba(0,0,0,.17); outline: 2px solid currentColor; outline-offset: 1px; }
+.feedback-toast-error { border-color: rgba(255,130,145,.58); color: #ffe7ea; background: #5a202b; }
+.feedback-toast-warning { border-color: rgba(255,191,89,.55); color: #fff0ce; background: #563b18; }
+.feedback-toast-info { border-color: rgba(124,198,255,.5); color: #e2f3ff; background: #193b53; }
+.feedback-toast-progress { position: absolute; right: 0; bottom: 0; left: 0; height: 3px; transform-origin: left; background: currentColor; opacity: .32; animation: feedback-toast-progress 5.6s linear forwards; }
+@keyframes feedback-toast-in { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes feedback-toast-progress { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@media (max-width: 560px) { .feedback-toast { right: max(12px, env(safe-area-inset-right)); bottom: max(82px, calc(72px + env(safe-area-inset-bottom))); left: max(12px, env(safe-area-inset-left)); width: auto; grid-template-columns: auto minmax(0, 1fr) auto; padding: 12px; } .feedback-toast-message { font-size: 10px; } }
