@@ -1085,3 +1085,46 @@ html:not(.dark) .public-checkout-card { background: rgba(255,255,255,.94); box-s
   .feedback-toast { background: #d8efad; border-color: #94bc5f; }
   .landing-footer, .landing-footer > span { color: #42584d; }
 }
+
+/* Light-theme tab and metadata contrast pass. */
+@media (prefers-color-scheme: light) {
+  .nav-item { color: #294337; font-weight: 600; }
+  .nav-item svg { color: #557267; }
+  .nav-item:hover svg, .nav-item.active svg { color: #3f7810; }
+  .nav-item.active { color: #2f650b; background: linear-gradient(90deg, #dceecf, #edf6e8); border-color: #b5d29e; box-shadow: inset 3px 0 #4f8f16, 0 4px 12px rgba(55,101,38,.08); }
+  .sidebar-bottom .nav-item { color: #3d5549; }
+  .sidebar-settings { color: #3d5549 !important; }
+  .mobile-bottom-nav { border-top-color: #b8cabe; background: rgba(232,241,235,.98); box-shadow: 0 -8px 24px rgba(40,74,54,.08); }
+  .mobile-bottom-nav button, .mobile-bottom-nav a { color: #4a6256; }
+  .mobile-bottom-nav button.active { color: #356b0e; }
+  .dashboard-tabs[data-active-tab="Collections"]::after, .dashboard-tabs[data-active-tab="Payouts"]::after, .dashboard-tabs[data-active-tab="Webhooks"]::after { color: #405a4c; border-color: #9eb5a8; background: #e7f0ea; }
+  .till-row, .payout-request-row, .payment-link-modes button, .generated-link-card, .webhook-row, .key-history-row { border-color: #c0d1c6; background: #e7f0ea; }
+  .till-row:hover, .payout-request-row:hover, .payment-link-modes button:hover, .payment-link-modes button.active, .key-history-row:hover { border-color: #8fb49a; background: #f2f8f4; }
+  .till-details strong, .payout-request-row strong, .key-history-row strong, .generated-link-card strong { color: #173326; }
+  .till-details span, .payout-request-row span:not(.status-badge), .generated-link-card span, .key-history-row small, .webhook-row span { color: #456054; }
+  .till-details small, .payout-request-row small, .webhook-row small { color: #60766a; }
+  .till-count, .key-history-heading span, .payout-history-heading > strong { color: #356b0e; background: #e1efd8; border-color: #b6d39d; }
+  .till-icon, .quick-icon, .feature-icon { color: #3f7810; background: #dceecd; }
+  .till-status.active, .status-badge.active { color: #087a4c; background: #d9f1e3; border-color: #a0d2b5; }
+  .till-status.inactive { color: #7a4d08; background: #fff0cd; border-color: #e5c786; }
+  .secret-toggle, .row-more, .key-history-actions button { color: #4e675a; }
+  .secret-toggle:hover, .row-more:hover, .key-history-actions button:hover { color: #356b0e; background: #dceee2; }
+  .env-check-list > div, .env-check-list strong { color: #405a4c; }
+  .tab-overview .panel, .tab-wallet .panel, .tab-api-keys .panel, .tab-tills .panel, .tab-payment-links .panel, .tab-webhooks .panel { color: #243d30; }
+  .tab-overview .panel-heading p, .tab-wallet .panel-heading p, .tab-api-keys .panel-heading p, .tab-tills .panel-heading p, .tab-payment-links .panel-heading p, .tab-webhooks .panel-heading p { color: #4b6256; }
+  .table-footer, .footer-note, .site-footer { color: #4b6256; border-color: #c5d4cb; }
+  .table-footer strong, .footer-note strong { color: #203c2d; }
+  .empty-state { color: #4f665a; }
+  .empty-state strong { color: #203c2d; }
+  .empty-state svg { color: #577366; }
+  .sort-active, .data-head button:hover { color: #356b0e; }
+  .data-head { color: #4b6256; border-color: #c5d4cb; }
+  .channel-pill, .status-badge, .till-status { border-color: #b7cbbd; }
+  .money-positive { color: #087a4c; }
+  .collection-amount-cell small { color: #5b7165; }
+  .form-grid label, .payment-link-form label > span, .modal-note, .modal-heading p { color: #456054; }
+  .form-grid input, .form-grid select { color: #172d21; background: #f1f7f3; border-color: #9eb5a8; }
+  .form-grid select option, .status-select option { color: #172d21; background: #f1f7f3; }
+  .modal-kicker { color: #467b18; }
+  .note-shield { color: #fff; background: #4f8f16; }
+}
