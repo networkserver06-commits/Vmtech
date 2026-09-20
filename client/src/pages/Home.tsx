@@ -15,6 +15,7 @@ import {
   ChevronDown,
   CircleHelp,
   Copy,
+  Download,
   Eye,
   EyeOff,
   ExternalLink,
@@ -45,6 +46,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
 import { useTheme } from "@/contexts/ThemeContext";
+import { AppDownloadCard } from "@/components/AppDownloadPrompt";
 
 const navGroups = [
   {
@@ -56,6 +58,7 @@ const navGroups = [
       { label: "Wallet", icon: WalletCards },
       { label: "Payment links", icon: Link2 },
       { label: "Connection health", icon: Activity },
+      { label: "Download app", icon: Download },
     ],
   },
   {
@@ -416,6 +419,14 @@ export default function Home() {
             <div className="till-list">{visibleTills.length ? visibleTills.map((till) => <div className="till-row" key={String(till.id)}><div className="till-icon"><Webhook size={15} /></div><div className="till-details"><strong>{String(till.name)}</strong><span>{String(till.paymentType ?? "BUY_GOODS") === "PHONE" ? "Payout phone" : String(till.paymentType ?? "BUY_GOODS") === "PAYBILL" ? "PayBill" : "Buy Goods Till"} · {String(till.tillNumber)}{till.location ? ` · ${String(till.location)}` : ""}</span><small> Payout destination: {String(till.payoutPhone ?? "Not set")}</small></div><span className={`till-status ${Boolean(till.isActive) ? "active" : "inactive"}`}>{Boolean(till.isActive) ? "Active" : "Inactive"}</span><button className="row-more" aria-label={`Remove ${String(till.name)}`} onClick={() => deleteTill.mutate({ id: Number(till.id) })}><X size={14} /></button></div>) : <div className="till-empty">No payout destinations configured. Add a phone number, Buy Goods Till, or PayBill number for payouts.</div>}</div>
             <div className="till-create-row"><select value={tillType} onChange={(event) => setTillType(event.target.value as "BUY_GOODS" | "PAYBILL")} aria-label="Payment destination type"><option value="BUY_GOODS">Buy Goods Till</option><option value="PAYBILL">PayBill</option></select><Input value={tillName} onChange={(event) => setTillName(event.target.value)} placeholder="Destination name" aria-label="Destination name" /><Input value={tillNumber} onChange={(event) => setTillNumber(event.target.value.replace(/[^\d+\s()-]/g, "").slice(0, 20))} placeholder="Phone, Till or PayBill number" aria-label="Phone, Till or PayBill number" inputMode="tel" autoComplete="tel" /><Input value={tillLocation} onChange={(event) => setTillLocation(event.target.value)} placeholder="Location (optional)" aria-label="Location (optional)" /><button className="secondary-button" disabled={createTill.isPending} onClick={submitTill}><Plus size={16} /> Add destination</button></div>
             <div className="fee-note"><ShieldCheck size={15} /><span>Enter either one Kenyan phone number or one Till/PayBill number for payouts. Confirm the destination carefully before saving; collection destinations are configured separately.</span></div>
+          </section>
+
+          <section className="tab-download-app">
+            <AppDownloadCard />
+            <div className="download-install-grid">
+              <div className="panel download-install-panel"><div className="panel-heading"><div><h3>Install in three steps</h3><p>The app is a secure Android wrapper for the LeeTec Engine workspace.</p></div><Download size={18} className="gold-icon" /></div><ol><li><span>01</span><div><strong>Download the APK</strong><small>Use the button above or the public download link.</small></div></li><li><span>02</span><div><strong>Allow Android installation</strong><small>If prompted, allow your browser or file manager to install this app.</small></div></li><li><span>03</span><div><strong>Sign in securely</strong><small>Use your existing LeeTec Engine account. Your workspace data stays on the same secure service.</small></div></li></ol></div>
+              <div className="panel download-details-panel"><div className="panel-heading"><div><h3>What you can do</h3><p>Mobile access to the tools you already use.</p></div><Zap size={18} className="gold-icon" /></div><div className="download-feature-list"><span><CheckCircle2 size={15} /> Monitor collection activity</span><span><CheckCircle2 size={15} /> Request and track payouts</span><span><CheckCircle2 size={15} /> Check wallet and connection health</span><span><CheckCircle2 size={15} /> Manage payment links and API access</span></div><div className="download-security-note"><ShieldCheck size={15} /><span>Only download the APK from your LeeTec Engine website or repository. Never share your login credentials.</span></div></div>
+            </div>
           </section>
 
           <SiteFooter />
