@@ -55,6 +55,7 @@ const navGroups = [
       { label: "Payouts", icon: Send },
       { label: "Wallet", icon: WalletCards },
       { label: "Payment links", icon: Link2 },
+      { label: "Connection health", icon: Activity },
     ],
   },
   {
@@ -182,12 +183,12 @@ export default function Home() {
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const { user, loading, refresh, logout } = useAuth();
   const overview = trpc.engine.overview.useQuery(undefined, { enabled: Boolean(user), refetchInterval: 5000, refetchOnWindowFocus: true });
-  const apiKeys = trpc.engine.listApiKeys.useQuery(undefined, { enabled: Boolean(user), refetchOnWindowFocus: true });
-  const tills = trpc.engine.listTills.useQuery(undefined, { enabled: Boolean(user), refetchOnWindowFocus: true });
+  const apiKeys = trpc.engine.listApiKeys.useQuery(undefined, { enabled: Boolean(user), refetchInterval: 10000, refetchIntervalInBackground: true, refetchOnWindowFocus: true });
+  const tills = trpc.engine.listTills.useQuery(undefined, { enabled: Boolean(user), refetchInterval: 10000, refetchIntervalInBackground: true, refetchOnWindowFocus: true });
   const walletDeposits = trpc.engine.listWalletDeposits.useQuery(undefined, { enabled: Boolean(user), refetchInterval: 5000, refetchIntervalInBackground: true, refetchOnWindowFocus: true });
   const walletLedger = trpc.engine.listWalletLedger.useQuery(undefined, { enabled: Boolean(user), refetchInterval: 5000, refetchIntervalInBackground: true, refetchOnWindowFocus: true });
   const tillTransactions = trpc.engine.listCollections.useQuery(undefined, { enabled: Boolean(user), refetchInterval: 5000, refetchIntervalInBackground: true, refetchOnWindowFocus: true });
-  const webhooks = trpc.engine.listWebhooks.useQuery(undefined, { enabled: Boolean(user), refetchOnWindowFocus: true });
+  const webhooks = trpc.engine.listWebhooks.useQuery(undefined, { enabled: Boolean(user), refetchInterval: 10000, refetchIntervalInBackground: true, refetchOnWindowFocus: true });
   const mutationError = (error: unknown) => { const message = error instanceof Error ? error.message : String((error as { message?: unknown })?.message ?? "Request failed. Please try again."); return message && message !== "undefined" ? message : "Request failed. Please try again."; };
   const createApiKey = trpc.engine.createApiKey.useMutation({ onSuccess: (result) => { setNewSecret(result.key); setShowSecret(true); setKeyName(""); apiKeys.refetch(); notify("API key created and securely stored"); }, onError: (error) => notify(mutationError(error), "error") });
   const revokeApiKey = trpc.engine.revokeApiKey.useMutation({ onSuccess: () => { apiKeys.refetch(); notify("API key revoked"); }, onError: (error) => notify(mutationError(error), "error") });
@@ -238,6 +239,9 @@ export default function Home() {
   const visibleWalletLedger = walletLedger.data ?? [];
   const visibleTillTransactions = tillTransactions.data ?? [];
   const normalizedDepositPhone = normalizeDepositPhone(depositPhone);
+  const connectionUpdatedAt = Math.max(overview.dataUpdatedAt ?? 0, apiKeys.dataUpdatedAt ?? 0, tills.dataUpdatedAt ?? 0, webhooks.dataUpdatedAt ?? 0);
+  const connectionOverall = overview.isError ? "error" : live.environment === "NOT_CONFIGURED" || !activeKey ? "warning" : "healthy";
+  const connectionOverallLabel = connectionOverall === "healthy" ? "All core checks healthy" : connectionOverall === "warning" ? "Action recommended" : "Connection check failed";
   const handleNavigation = (label: string) => {
     setActiveNav(label);
     setMobileOpen(false);
@@ -365,7 +369,7 @@ export default function Home() {
           </section>
 
           {activeNav === "Overview" && <section className="hero-strip">
-            <div className="hero-copy"><div className="hero-kicker"><span className="pulse-dot" /> {live.environment === "PRODUCTION" ? "LIVE ENVIRONMENT" : live.environment === "SANDBOX" ? "SANDBOX ENVIRONMENT" : "ENVIRONMENT SETUP"}</div><h2>Payments that move at the speed of your business.</h2><p>{live.shortcode ? <>LeeTec Engine payment connection is ready.</> : "Connect LeeTec Engine in Settings to enable payment requests."}</p><button className="text-link" onClick={() => notify(live.shortcode ? "Configuration loaded from your workspace" : "M-PESA configuration is not set")}>View connection health <ArrowUpRight size={15} /></button></div>
+            <div className="hero-copy"><div className="hero-kicker"><span className="pulse-dot" /> {live.environment === "PRODUCTION" ? "LIVE ENVIRONMENT" : live.environment === "SANDBOX" ? "SANDBOX ENVIRONMENT" : "ENVIRONMENT SETUP"}</div><h2>Payments that move at the speed of your business.</h2><p>{live.shortcode ? <>LeeTec Engine payment connection is ready.</> : "Connect LeeTec Engine in Settings to enable payment requests."}</p><button className="text-link" onClick={() => setActiveNav("Connection health")}>View connection health <ArrowUpRight size={15} /></button></div>
             <div className="hero-orbit"><div className="orbit-ring ring-one" /><div className="orbit-ring ring-two" /><div className="orbit-core"><Zap size={27} /></div><span className="orbit-label label-a">STK</span><span className="orbit-label label-c">C2B</span></div>
           </section>}
 
@@ -374,6 +378,17 @@ export default function Home() {
             <div className="metric-card"><div className="metric-top"><span>Collections volume</span><ArrowDownLeft size={17} /></div><div className="metric-value">{money(live.collections)}</div><div className="metric-bottom"><span className="metric-change neutral">All recorded collections</span></div><div className="metric-spark"><div className="spark-line">{chartBars.slice(-8).map((height, index) => <span key={index} style={{ height: `${height}%` }} />)}</div></div></div>
             <div className="metric-card"><div className="metric-top"><span>Successful requests</span><CheckCircle2 size={17} /></div><div className="metric-value">{live.successRate}<span>%</span></div><div className="metric-bottom"><span className="metric-change neutral">Recorded activity</span><span>{activities.length} recent events</span></div><div className="progress-track"><div className="progress-value" style={{ width: `${live.successRate}%` }} /></div><div className="progress-caption"><span>From stored transactions</span><span>{live.successRate >= 90 ? "Healthy" : live.successRate > 0 ? "Monitor" : "No data"}</span></div></div>
             <div className="metric-card"><div className="metric-top"><span>Active API keys</span><KeyRound size={17} /></div><div className="metric-value">{String(live.activeKeys).padStart(2, "0")}</div><div className="metric-bottom"><span className="metric-change neutral">{live.environment === "PRODUCTION" ? "Production" : live.environment === "SANDBOX" ? "Sandbox" : "Not configured"}</span><span>{activeKey ? `Last used ${relativeTime(activeKey.lastUsedAt)}` : "No active keys"}</span></div><button className="metric-action standalone" onClick={() => { setActiveNav("API keys"); document.getElementById("api-keys-panel")?.scrollIntoView({ behavior: "smooth", block: "center" }); }}>Manage keys <ArrowUpRight size={13} /></button></div>
+          </section>
+
+          <section className="panel connection-health-panel tab-connection-health" aria-labelledby="connection-health-title">
+            <div className="connection-health-header"><div><div className="panel-kicker">LEE TEC ENGINE <span className="eyebrow-line" /></div><h2 id="connection-health-title">Connection health</h2><p>Live checks for your LeeTec Engine workspace. Status refreshes automatically every 5–10 seconds.</p></div><div className={`connection-overall ${connectionOverall}`}><span className="connection-status-dot" /><strong>{connectionOverallLabel}</strong><small>{connectionUpdatedAt ? `Updated ${relativeTime(connectionUpdatedAt)}` : "Checking now…"}</small></div></div>
+            <div className="connection-health-grid">
+              <div className={`connection-check-card ${overview.isError ? "error" : overview.isLoading ? "pending" : "healthy"}`}><div className="connection-check-icon"><Activity size={17} /></div><div><strong>LeeTec Engine API</strong><span>{overview.isError ? "The workspace API could not be reached." : overview.isLoading ? "Checking workspace response…" : "Workspace API is responding normally."}</span></div><b>{overview.isError ? "Error" : overview.isLoading ? "Checking" : "Healthy"}</b></div>
+              <div className={`connection-check-card ${live.environment === "NOT_CONFIGURED" ? "warning" : "healthy"}`}><div className="connection-check-icon"><Zap size={17} /></div><div><strong>Payment connection</strong><span>{live.environment === "NOT_CONFIGURED" ? "Add LeeTec Engine payment credentials in Settings." : `LeeTec Engine is ready in ${live.environment === "PRODUCTION" ? "live" : "sandbox"} mode.`}</span></div><b>{live.environment === "NOT_CONFIGURED" ? "Needs setup" : "Ready"}</b></div>
+              <div className={`connection-check-card ${activeKey ? "healthy" : "warning"}`}><div className="connection-check-icon"><KeyRound size={17} /></div><div><strong>API access</strong><span>{activeKey ? `${live.activeKeys} active API key${live.activeKeys === 1 ? "" : "s"} available for server integrations.` : "Create an API key before making authenticated requests."}</span></div><b>{activeKey ? "Ready" : "Needs key"}</b></div>
+              <div className="connection-check-card healthy"><div className="connection-check-icon"><Webhook size={17} /></div><div><strong>Event delivery</strong><span>{webhooks.isError ? "Webhook status could not be checked." : webhooks.data?.length ? `${webhooks.data.length} webhook endpoint${webhooks.data.length === 1 ? "" : "s"} configured.` : "No webhook is configured; transaction history remains available."}</span></div><b>{webhooks.isError ? "Unknown" : "Available"}</b></div>
+            </div>
+            <div className="connection-health-footer"><span><span className="pulse-dot" /> Automatic refresh enabled</span><span>Last activity: {activities.length ? relativeTime(activities[0]?.createdAt) : "No transactions yet"}</span><button className="text-link" onClick={() => { overview.refetch(); apiKeys.refetch(); tills.refetch(); webhooks.refetch(); notify("Connection health refreshed"); }}>Refresh now <ArrowUpRight size={14} /></button></div>
           </section>
 
           <section className="wallet-deposit-panel panel tab-wallet">

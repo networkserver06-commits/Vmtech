@@ -1159,3 +1159,45 @@ html:not(.dark) {
   .settings-note { color: #456054; border-color: #c2d2c8; background: #e9f1ec; }
   .settings-note svg { color: #467b18; }
 }
+
+/* Connection health workspace tab */
+.dashboard-tabs:not([data-active-tab="Connection health"]) .tab-connection-health { display: none; }
+.dashboard-tabs[data-active-tab="Connection health"] .page-heading,
+.dashboard-tabs[data-active-tab="Connection health"] .tab-overview,
+.dashboard-tabs[data-active-tab="Connection health"] .tab-wallet,
+.dashboard-tabs[data-active-tab="Connection health"] .tab-webhooks,
+.dashboard-tabs[data-active-tab="Connection health"] .tab-payment-links,
+.dashboard-tabs[data-active-tab="Connection health"] .lower-grid { display: none; }
+.connection-health-panel { padding: 22px; }
+.connection-health-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; }
+.connection-health-header h2 { margin-top: 7px; color: #dce8e6; font-size: 20px; }
+.connection-health-header p { max-width: 580px; margin-top: 7px; color: #82939b; font-size: 11px; line-height: 1.5; }
+.connection-overall { display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 7px; min-width: 170px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,.03); }
+.connection-overall strong { color: #dce8e6; font-size: 10px; }
+.connection-overall small { grid-column: 2; margin-top: 3px; color: #82939b; font-size: 9px; }
+.connection-status-dot { grid-row: 1 / span 2; width: 9px; height: 9px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px rgba(89,217,154,.1); }
+.connection-overall.warning .connection-status-dot, .connection-check-card.warning .connection-check-icon { background: var(--orange); color: var(--orange); box-shadow: 0 0 0 4px rgba(246,184,95,.1); }
+.connection-overall.error .connection-status-dot, .connection-check-card.error .connection-check-icon { background: var(--red); color: var(--red); box-shadow: 0 0 0 4px rgba(236,119,132,.1); }
+.connection-health-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 20px; }
+.connection-check-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 82px; padding: 13px; border: 1px solid rgba(89,217,154,.2); border-radius: 9px; background: rgba(89,217,154,.04); }
+.connection-check-card.pending { border-color: rgba(246,184,95,.25); background: rgba(246,184,95,.045); }
+.connection-check-card.warning { border-color: rgba(246,184,95,.28); background: rgba(246,184,95,.05); }
+.connection-check-card.error { border-color: rgba(236,119,132,.3); background: rgba(236,119,132,.05); }
+.connection-check-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; color: var(--green); background: rgba(89,217,154,.1); }
+.connection-check-card > div:nth-child(2) { min-width: 0; }
+.connection-check-card strong, .connection-check-card span { display: block; }
+.connection-check-card strong { color: #dce8e6; font-size: 11px; }
+.connection-check-card span { margin-top: 5px; color: #82939b; font-size: 9px; line-height: 1.45; }
+.connection-check-card b { align-self: start; color: var(--green); font-size: 9px; white-space: nowrap; }
+.connection-check-card.warning b, .connection-check-card.pending b { color: var(--orange); }
+.connection-check-card.error b { color: var(--red); }
+.connection-health-footer { display: flex; align-items: center; gap: 16px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); color: #82939b; font-size: 9px; }
+.connection-health-footer > span { display: inline-flex; align-items: center; gap: 6px; }
+.connection-health-footer .text-link { margin-left: auto; }
+@media (max-width: 700px) { .connection-health-header { flex-direction: column; }.connection-overall { width: 100%; }.connection-health-grid { grid-template-columns: 1fr; }.connection-health-footer { align-items: flex-start; flex-direction: column; gap: 9px; }.connection-health-footer .text-link { margin-left: 0; } }
+html:not(.dark) .connection-health-header h2, html:not(.dark) .connection-check-card strong, html:not(.dark) .connection-overall strong { color: #173129; }
+html:not(.dark) .connection-health-header p, html:not(.dark) .connection-check-card span, html:not(.dark) .connection-overall small, html:not(.dark) .connection-health-footer { color: #4b6256; }
+html:not(.dark) .connection-overall, html:not(.dark) .connection-check-card { background: #f7faf8; border-color: #b8cdbf; }
+html:not(.dark) .connection-check-card.warning, html:not(.dark) .connection-overall.warning { background: #fff8e8; border-color: #e0c47a; }
+html:not(.dark) .connection-check-card.error, html:not(.dark) .connection-overall.error { background: #fff0f2; border-color: #d99aa7; }
+html:not(.dark) .connection-health-footer { border-color: #c5d4cb; }
