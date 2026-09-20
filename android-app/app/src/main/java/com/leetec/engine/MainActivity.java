@@ -36,6 +36,13 @@ public class MainActivity extends Activity {
         window.getDecorView().setSystemUiVisibility(0);
 
         FrameLayout root = new FrameLayout(this);
+        root.setFitsSystemWindows(true);
+        root.setOnApplyWindowInsetsListener((view, insets) -> {
+            int topInset = insets.getSystemWindowInsetTop();
+            int bottomInset = insets.getSystemWindowInsetBottom();
+            view.setPadding(0, topInset, 0, bottomInset);
+            return insets;
+        });
         webView = new WebView(this);
         progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progressBar.setMax(100);
@@ -44,6 +51,7 @@ public class MainActivity extends Activity {
         FrameLayout.LayoutParams progressParams = new FrameLayout.LayoutParams(-1, 5);
         root.addView(progressBar, progressParams);
         setContentView(root);
+        root.requestApplyInsets();
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
