@@ -47,7 +47,7 @@ export function AppDownloadCard() {
     <section className="app-download-card">
       <div className="app-download-card-icon"><Smartphone size={26} /></div>
       <div className="app-download-card-copy"><span className="panel-kicker">MOBILE WORKSPACE <span className="eyebrow-line" /></span><h2>LeeTec Engine for Android</h2><p>Keep collections, payouts, wallet activity, and connection health close at hand. Download the Android app and sign in with your existing LeeTec Engine account.</p><div className="app-download-points"><span><span className="live-dot" /> Android APK</span><span>•</span><span>Same secure workspace</span></div></div>
-      <div className="app-download-card-action"><a className="primary-button" href={APK_URL} download="leetec-engine.apk"><Download size={16} /> Download app</a><small>Version 1.0 · LeeTec Engine</small></div>
+      <div className="app-download-card-action"><a className="primary-button" href={APK_URL} download="leetec-engine.apk"><Download size={16} /> Download app</a><small>Version 1.1 · LeeTec Engine</small></div>
     </section>
   );
 }
