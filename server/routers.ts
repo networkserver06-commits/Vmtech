@@ -10,6 +10,7 @@ import { createSecurityCredential, encryptSecret, generateApiKey, generatePrefix
 import { encryptedConfigToDaraja, registerC2bUrls, triggerStkPush } from "./mpesa.js";
 import { changePassword } from "./emailAuth.js";
 import { notifyAdminsOfPayoutRequest, notifyUserOfPayoutStatus } from "./email.js";
+import { accountReferenceSchema } from "./reference.js";
 
 /** Convert common Kenyan mobile formats to the Daraja-required 254XXXXXXXXX format. */
 export function normalizeKenyanPhone(value: string): string {
@@ -103,7 +104,7 @@ export const appRouter = router({
       await saveMpesaConfig({ userId: ctx.user.id, shortcode: input.shortcode, consumerKeyEncrypted: encryptSecret(input.consumerKey), consumerSecretEncrypted: encryptSecret(input.consumerSecret), passkeyEncrypted: encryptSecret(input.passkey), b2cInitiatorName: input.b2cInitiatorName, b2cInitiatorPasswordEncrypted: input.b2cInitiatorPassword ? encryptSecret(input.b2cInitiatorPassword) : null, environment: input.environment });
       return { success: true, environment: input.environment };
     }),
-    stkPush: protectedProcedure.input(z.object({ phoneNumber: phoneSchema, amount: amountSchema, tillId: z.number().int().positive().optional(), accountReference: z.string().regex(/^1/, "Reference must start with 1").max(64).optional(), transactionDesc: z.string().max(100).default("LeeTec collection") })).mutation(async ({ ctx, input }) => {
+    stkPush: protectedProcedure.input(z.object({ phoneNumber: phoneSchema, amount: amountSchema, tillId: z.number().int().positive().optional(), accountReference: accountReferenceSchema.optional(), transactionDesc: z.string().max(100).default("LeeTec collection") })).mutation(async ({ ctx, input }) => {
       const stored = await getStoredConfig(ctx.user.id);
       const liveEnabled = process.env.MPESA_LIVE_ENABLED === "true" || process.env.MPESA_ENVIRONMENT === "PRODUCTION";
       const baseConfig = liveEnabled || !stored ? { consumerKey: process.env.MPESA_CONSUMER_KEY ?? "sandbox", consumerSecret: process.env.MPESA_CONSUMER_SECRET ?? "sandbox", passkey: process.env.MPESA_PASSKEY ?? "sandbox", shortcode: process.env.MPESA_SHORTCODE ?? "4208798", environment: process.env.MPESA_ENVIRONMENT === "PRODUCTION" ? "PRODUCTION" as const : "SANDBOX" as const } : encryptedConfigToDaraja(stored);

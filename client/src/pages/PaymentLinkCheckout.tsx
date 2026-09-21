@@ -12,7 +12,8 @@ export default function PaymentLinkCheckout() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const pathParts = window.location.pathname.split("/").filter(Boolean);
   const merchantSlug = pathParts[0] === "pay" ? (pathParts[1] ?? "").trim().toLowerCase() : "";
-  const reference = params.get("reference") ?? `1LINK${Date.now().toString().slice(-8)}`;
+  const suppliedReference = params.get("reference")?.trim();
+  const reference = suppliedReference || `1LINK${Date.now().toString().slice(-8)}`;
   const fixedAmount = params.get("amount") ?? "";
   const [phone, setPhone] = useState("");
   const [amount, setAmount] = useState(fixedAmount);
