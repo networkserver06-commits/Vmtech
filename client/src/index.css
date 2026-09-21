@@ -1284,3 +1284,21 @@ html:not(.dark) .connection-health-footer { border-color: #c5d4cb; }
 .admin-tab-dropdown select { min-width: 210px; height: 32px; color: #dce8e6; border: 1px solid var(--line-strong); border-radius: 6px; background: #14202a; padding: 0 9px; font-size: 10px; }
 .admin-tab-dropdown select:focus { outline: 1px solid rgba(197,245,110,.5); }
 @media (max-width: 560px) { .admin-tab-dropdown { align-items: stretch; flex-direction: column; }.admin-tab-dropdown select { width: 100%; } }
+
+/* Super Admin Portal tab navigation */
+.admin-tab-navigation { margin-bottom: 14px; padding: 12px; border: 1px solid #1f2937; border-radius: 12px; background: #111827; }
+.admin-section-selector { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.admin-section-selector label { color: #6b7280; font: 9px 'DM Mono', monospace; letter-spacing: 1.2px; }
+.admin-section-selector select { min-width: 210px; height: 32px; color: #f9fafb; border: 1px solid #1f2937; border-radius: 7px; background: #0b0f17; padding: 0 10px; font-size: 10px; }
+.admin-section-selector select:focus { outline: 2px solid rgba(132,204,22,.45); outline-offset: 1px; }
+.admin-tab-scroll { display: flex; gap: 3px; overflow-x: auto; scrollbar-width: thin; scrollbar-color: #374151 transparent; border-bottom: 1px solid #1f2937; }
+.admin-tab { position: relative; display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; min-height: 40px; padding: 0 14px; color: #9ca3af; border: 0; border-radius: 7px 7px 0 0; background: transparent; font-size: 10px; white-space: nowrap; cursor: pointer; transition: color .18s ease, background .18s ease; }
+.admin-tab:hover { color: #f9fafb; background: #1f2937; }
+.admin-tab:focus-visible { outline: 2px solid #84cc16; outline-offset: -2px; }
+.admin-tab.active { color: #f9fafb; }
+.admin-tab.active::after { content: ""; position: absolute; right: 10px; bottom: -1px; left: 10px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, #84cc16, #22c55e); box-shadow: 0 0 12px rgba(132,204,22,.55); animation: admin-tab-glide .2s ease-out; }
+.admin-tab svg { color: #6b7280; transition: color .18s ease; }
+.admin-tab.active svg, .admin-tab:hover svg { color: #84cc16; }
+.admin-tab-badge { display: inline-grid; min-width: 20px; height: 18px; place-items: center; padding: 0 6px; color: #a3e635; border: 1px solid rgba(132,204,22,.2); border-radius: 999px; background: rgba(132,204,22,.12); font-size: 9px; line-height: 1; }
+@keyframes admin-tab-glide { from { opacity: .2; transform: scaleX(.35); } to { opacity: 1; transform: scaleX(1); } }
+@media (max-width: 560px) { .admin-tab-navigation { padding: 10px; }.admin-section-selector { align-items: stretch; flex-direction: column; gap: 6px; }.admin-section-selector select { width: 100%; }.admin-tab { padding: 0 12px; } }
