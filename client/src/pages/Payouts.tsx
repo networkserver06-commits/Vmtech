@@ -52,9 +52,9 @@ export default function Payouts() {
     const requestedAmount = Number(allAmount);
     if (!Number.isFinite(requestedAmount) || requestedAmount < 50) return showToast("Enter at least KES 50 per collection.", "error");
     if (!destination) return showToast("Add a payout phone, Till, or PayBill destination first.", "error");
-    await Promise.all([collectionsQuery.refetch(), payoutRequests.refetch()]);
-    const refreshedCollections = collectionsQuery.data ?? [];
-    const refreshedRequests = payoutRequests.data ?? [];
+    const [collectionsResult, payoutRequestsResult] = await Promise.all([collectionsQuery.refetch(), payoutRequests.refetch()]);
+    const refreshedCollections = collectionsResult.data ?? [];
+    const refreshedRequests = payoutRequestsResult.data ?? [];
     const requestedFor = (id: string) => refreshedRequests.filter((request) => String(request.transactionId) === id).reduce((sum, request) => sum + Number(request.amount ?? 0), 0);
     const refreshedEligible = refreshedCollections.map((row) => ({ id: String(row.id), amount: Number(row.amount ?? 0), status: String(row.status ?? "") })).filter((row) => row.status.toUpperCase() === "SUCCESS" && row.amount >= 50 && requestedFor(row.id) === 0);
     const cents = (value: number) => Math.round((value + Number.EPSILON) * 100);
