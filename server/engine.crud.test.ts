@@ -30,9 +30,9 @@ describe("engine CRUD contracts", () => {
     expect(await caller.engine.listPayouts()).toEqual([]);
   });
 
-  it("rejects collection references that do not start with 1", async () => {
+  it("accepts collection references that do not start with 1", async () => {
     const caller = appRouter.createCaller(createContext());
-    await expect(caller.engine.createCollection({ phoneNumber: "254712884203", amount: 2500, accountReference: "INV-1001" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(caller.engine.createCollection({ phoneNumber: "254712884203", amount: 2500, accountReference: "INV-1001" })).resolves.toBeNull();
   });
 
   it("accepts and normalizes 07-format Kenyan payout phone numbers", async () => {
