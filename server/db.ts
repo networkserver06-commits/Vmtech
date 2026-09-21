@@ -158,6 +158,8 @@ export async function createPayoutRequest(input: { userId: number; transactionId
 export async function createPayoutRequestsForAll(input: { userId: number; amount: number; destinationType: "PHONE" | "TILL"; destination: string }) {
   const db = await getTurso(); if (!db) throw new Error("Database is not configured");
   if (!Number.isFinite(input.amount) || input.amount < 50 || input.amount > 1500000) throw new Error("Payout amount must be between KES 50 and KES 1,500,000");
+  const existingAggregate = asRows<TursoRow>(await db.execute({ sql: "SELECT id FROM payoutRequests WHERE userId = ? AND adminNote LIKE 'AGGREGATE_PAYOUT:%' AND status NOT IN ('REJECTED') LIMIT 1", args: [input.userId] }))[0];
+  if (existingAggregate) return { count: 0, totalAmount: 0, alreadyRequested: true };
   const result = await db.execute({ sql: "SELECT t.id, t.amount, COALESCE((SELECT SUM(pr.amount) FROM payoutRequests pr WHERE pr.transactionId = t.id), 0) AS requestedAmount FROM transactions t WHERE t.userId = ? AND UPPER(t.status) = 'SUCCESS' ORDER BY datetime(t.createdAt) ASC", args: [input.userId] });
   const rows = asRows<TursoRow>(result);
   let remaining = Math.round(input.amount * 100) / 100;
@@ -170,15 +172,20 @@ export async function createPayoutRequestsForAll(input: { userId: number; amount
     remaining = Math.round((remaining - allocation) * 100) / 100;
   }
   if (remaining > 0.009 || !allocations.length) return { count: 0, totalAmount: 0 };
-  await db.batch(allocations.map((allocation) => ({ sql: "INSERT INTO payoutRequests (userId, transactionId, amount, destinationType, destination) SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM payoutRequests WHERE transactionId = ?)", args: [input.userId, allocation.transactionId, allocation.amount.toFixed(2), input.destinationType, input.destination, allocation.transactionId] })), "write");
-  return { count: allocations.length, totalAmount: input.amount, amountPerCollection: null };
+  const allocationNote = `AGGREGATE_PAYOUT:${allocations.length}:${allocations.map((allocation) => `${allocation.transactionId}=${allocation.amount.toFixed(2)}`).join(",")}`;
+  const inserted = await db.execute({ sql: "INSERT INTO payoutRequests (userId, transactionId, amount, destinationType, destination, adminNote) SELECT ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM payoutRequests WHERE transactionId = ?)", args: [input.userId, allocations[0].transactionId, input.amount.toFixed(2), input.destinationType, input.destination, allocationNote, allocations[0].transactionId] });
+  if (Number(inserted.rowsAffected ?? 0) !== 1) return { count: 0, totalAmount: 0 };
+  return { count: 1, totalAmount: input.amount, amountPerCollection: null };
 }
 export async function listPayoutRequests(userId: number) { const result = await execute({ sql: "SELECT pr.*, u.email, u.name, t.accountReference, t.phoneNumber AS collectionPhone FROM payoutRequests pr JOIN users u ON u.id = pr.userId JOIN transactions t ON t.id = pr.transactionId AND t.userId = pr.userId WHERE pr.userId = ? ORDER BY datetime(pr.createdAt) DESC", args: [userId] }); return result ? asRows<TursoRow>(result) : []; }
 export async function listAdminPayoutRequests() { const result = await execute("SELECT pr.*, u.email, u.name, u.accountId, t.accountReference, t.phoneNumber AS collectionPhone FROM payoutRequests pr JOIN users u ON u.id = pr.userId JOIN transactions t ON t.id = pr.transactionId AND t.userId = pr.userId ORDER BY datetime(pr.createdAt) DESC LIMIT 200"); return result ? asRows<TursoRow>(result) : []; }
 export async function getPayoutRequest(id: number) { const result = await execute({ sql: "SELECT pr.*, u.email, u.name FROM payoutRequests pr JOIN users u ON u.id = pr.userId WHERE pr.id = ? LIMIT 1", args: [id] }); return result ? asRows<TursoRow>(result)[0] : undefined; }
 export async function updatePayoutRequestStatus(id: number, status: "REVIEWING" | "APPROVED" | "REJECTED" | "PAID", adminNote?: string | null) {
-  if (status === "APPROVED") return execute({ sql: "UPDATE payoutRequests SET status = 'APPROVED', approvedAmount = amount, settledAt = ?, adminNote = ?, updatedAt = ? WHERE id = ? AND status NOT IN ('APPROVED', 'PAID', 'REJECTED')", args: [now(), adminNote ?? null, now(), id] });
-  return execute({ sql: "UPDATE payoutRequests SET status = ?, adminNote = ?, updatedAt = ? WHERE id = ? AND status NOT IN ('APPROVED', 'PAID', 'REJECTED')", args: [status, adminNote ?? null, now(), id] });
+  const current = asRows<TursoRow>(await (await getTurso())?.execute({ sql: "SELECT adminNote FROM payoutRequests WHERE id = ? LIMIT 1", args: [id] }) ?? { rows: [] })[0];
+  const currentNote = String(current?.adminNote ?? "");
+  const combinedNote = currentNote.startsWith("AGGREGATE_PAYOUT:") && adminNote?.trim() ? `${currentNote} | ADMIN_NOTE: ${adminNote.trim()}` : currentNote.startsWith("AGGREGATE_PAYOUT:") ? currentNote : adminNote ?? null;
+  if (status === "APPROVED") return execute({ sql: "UPDATE payoutRequests SET status = 'APPROVED', approvedAmount = amount, settledAt = ?, adminNote = ?, updatedAt = ? WHERE id = ? AND status NOT IN ('APPROVED', 'PAID', 'REJECTED')", args: [now(), combinedNote, now(), id] });
+  return execute({ sql: "UPDATE payoutRequests SET status = ?, adminNote = ?, updatedAt = ? WHERE id = ? AND status NOT IN ('APPROVED', 'PAID', 'REJECTED')", args: [status, combinedNote, now(), id] });
 }
 export async function createPayout(input: { userId: number; recipientPhone: string; amount: number; commandId: "BusinessPayment" | "SalaryPayment"; status?: string }) { return execute({ sql: "INSERT INTO payouts (userId, recipientPhone, amount, commandId, status) VALUES (?, ?, ?, ?, ?)", args: [input.userId, input.recipientPhone, input.amount.toFixed(2), input.commandId, input.status ?? "PENDING"] }); }
 export async function createReservedPayout(input: { userId: number; recipientPhone: string; amount: number; commandId: "BusinessPayment" | "SalaryPayment" }) {
