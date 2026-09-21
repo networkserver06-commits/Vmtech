@@ -1278,3 +1278,9 @@ html:not(.dark) .connection-health-footer { border-color: #c5d4cb; }
 .admin-nav-submenu button { padding: 8px 10px; font-size: 10px; }
 .admin-nav-submenu button.active { color: var(--lime); background: rgba(197,245,110,.09); box-shadow: inset 2px 0 var(--lime); }
 .admin-nav-label { margin: 13px 10px 4px; color: #566971; font: 8px 'DM Mono', monospace; letter-spacing: .9px; text-transform: uppercase; }
+
+.admin-tab-dropdown { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; padding: 9px 12px; border: 1px solid rgba(197,245,110,.15); border-radius: 8px; background: rgba(197,245,110,.045); }
+.admin-tab-dropdown label { color: #82939b; font: 9px 'DM Mono', monospace; letter-spacing: .5px; text-transform: uppercase; }
+.admin-tab-dropdown select { min-width: 210px; height: 32px; color: #dce8e6; border: 1px solid var(--line-strong); border-radius: 6px; background: #14202a; padding: 0 9px; font-size: 10px; }
+.admin-tab-dropdown select:focus { outline: 1px solid rgba(197,245,110,.5); }
+@media (max-width: 560px) { .admin-tab-dropdown { align-items: stretch; flex-direction: column; }.admin-tab-dropdown select { width: 100%; } }
