@@ -158,11 +158,20 @@ export async function createPayoutRequest(input: { userId: number; transactionId
 export async function createPayoutRequestsForAll(input: { userId: number; amount: number; destinationType: "PHONE" | "TILL"; destination: string }) {
   const db = await getTurso(); if (!db) throw new Error("Database is not configured");
   if (!Number.isFinite(input.amount) || input.amount < 50 || input.amount > 1500000) throw new Error("Payout amount must be between KES 50 and KES 1,500,000");
-  const result = await db.execute({ sql: "SELECT t.id, t.amount FROM transactions t WHERE t.userId = ? AND UPPER(t.status) = 'SUCCESS' AND CAST(t.amount AS REAL) >= ? AND NOT EXISTS (SELECT 1 FROM payoutRequests pr WHERE pr.transactionId = t.id)", args: [input.userId, input.amount] });
-  const eligible = asRows<TursoRow>(result);
-  if (!eligible.length) return { count: 0, totalAmount: 0 };
-  await db.batch(eligible.map((transaction) => ({ sql: "INSERT INTO payoutRequests (userId, transactionId, amount, destinationType, destination) VALUES (?, ?, ?, ?, ?)", args: [input.userId, Number(transaction.id), input.amount.toFixed(2), input.destinationType, input.destination] })), "write");
-  return { count: eligible.length, totalAmount: eligible.length * input.amount, amountPerCollection: input.amount };
+  const result = await db.execute({ sql: "SELECT t.id, t.amount, COALESCE((SELECT SUM(pr.amount) FROM payoutRequests pr WHERE pr.transactionId = t.id), 0) AS requestedAmount FROM transactions t WHERE t.userId = ? AND UPPER(t.status) = 'SUCCESS' ORDER BY datetime(t.createdAt) ASC", args: [input.userId] });
+  const rows = asRows<TursoRow>(result);
+  let remaining = Math.round(input.amount * 100) / 100;
+  const allocations: Array<{ transactionId: number; amount: number }> = [];
+  for (const row of rows) {
+    const available = Math.max(0, Math.round((Number(row.amount ?? 0) - Number(row.requestedAmount ?? 0)) * 100) / 100);
+    if (available <= 0 || remaining <= 0) continue;
+    const allocation = Math.min(available, remaining);
+    allocations.push({ transactionId: Number(row.id), amount: Math.round(allocation * 100) / 100 });
+    remaining = Math.round((remaining - allocation) * 100) / 100;
+  }
+  if (remaining > 0.009 || !allocations.length) return { count: 0, totalAmount: 0 };
+  await db.batch(allocations.map((allocation) => ({ sql: "INSERT INTO payoutRequests (userId, transactionId, amount, destinationType, destination) SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM payoutRequests WHERE transactionId = ?)", args: [input.userId, allocation.transactionId, allocation.amount.toFixed(2), input.destinationType, input.destination, allocation.transactionId] })), "write");
+  return { count: allocations.length, totalAmount: input.amount, amountPerCollection: null };
 }
 export async function listPayoutRequests(userId: number) { const result = await execute({ sql: "SELECT pr.*, u.email, u.name, t.accountReference, t.phoneNumber AS collectionPhone FROM payoutRequests pr JOIN users u ON u.id = pr.userId JOIN transactions t ON t.id = pr.transactionId AND t.userId = pr.userId WHERE pr.userId = ? ORDER BY datetime(pr.createdAt) DESC", args: [userId] }); return result ? asRows<TursoRow>(result) : []; }
 export async function listAdminPayoutRequests() { const result = await execute("SELECT pr.*, u.email, u.name, u.accountId, t.accountReference, t.phoneNumber AS collectionPhone FROM payoutRequests pr JOIN users u ON u.id = pr.userId JOIN transactions t ON t.id = pr.transactionId AND t.userId = pr.userId ORDER BY datetime(pr.createdAt) DESC LIMIT 200"); return result ? asRows<TursoRow>(result) : []; }
