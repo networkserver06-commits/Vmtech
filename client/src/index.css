@@ -1268,3 +1268,13 @@ html:not(.dark) .connection-overall, html:not(.dark) .connection-check-card { ba
 html:not(.dark) .connection-check-card.warning, html:not(.dark) .connection-overall.warning { background: #fff8e8; border-color: #e0c47a; }
 html:not(.dark) .connection-check-card.error, html:not(.dark) .connection-overall.error { background: #fff0f2; border-color: #d99aa7; }
 html:not(.dark) .connection-health-footer { border-color: #c5d4cb; }
+
+/* Admin control-center navigation */
+.admin-nav-group-toggle { justify-content: flex-start; color: #dce8e6 !important; background: rgba(197,245,110,.07) !important; }
+.admin-nav-group-toggle span { flex: 1; }
+.admin-nav-chevron { transition: transform .16s ease; color: #82939b; }
+.admin-nav-chevron.open { transform: rotate(180deg); color: var(--lime); }
+.admin-nav-submenu { display: grid; gap: 2px; margin: 2px 0 9px 12px; padding-left: 9px; border-left: 1px solid rgba(197,245,110,.18); }
+.admin-nav-submenu button { padding: 8px 10px; font-size: 10px; }
+.admin-nav-submenu button.active { color: var(--lime); background: rgba(197,245,110,.09); box-shadow: inset 2px 0 var(--lime); }
+.admin-nav-label { margin: 13px 10px 4px; color: #566971; font: 8px 'DM Mono', monospace; letter-spacing: .9px; text-transform: uppercase; }
