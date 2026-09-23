@@ -358,6 +358,7 @@ export default function Home() {
           <button className="mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={20} /></button>
           <div className="breadcrumbs"><span className="breadcrumb-home"><LayoutDashboard size={13} /> Workspace</span><span className="slash">/</span><strong>{activeNav}</strong></div>
           <div className="topbar-actions">
+            {user.role?.toUpperCase() === "ADMIN" && <button className="admin-portal-switch" type="button" onClick={() => navigate("/admin")}><ShieldCheck size={15} /><span>Super Admin</span></button>}
             <button className="theme-toggle" type="button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`} onClick={() => toggleTheme?.()}>{theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}<span>{theme === "dark" ? "Light" : "Dark"}</span></button>
             <div className="search-wrap"><Search size={16} /><Input placeholder="Search workspace" aria-label="Search workspace" /><kbd>⌘ K</kbd></div>
             <button className="top-icon" aria-label="Notifications"><Bell size={18} /><span className="notification-dot" /></button>
