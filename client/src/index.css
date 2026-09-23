@@ -1302,3 +1302,21 @@ html:not(.dark) .connection-health-footer { border-color: #c5d4cb; }
 .admin-tab-badge { display: inline-grid; min-width: 20px; height: 18px; place-items: center; padding: 0 6px; color: #a3e635; border: 1px solid rgba(132,204,22,.2); border-radius: 999px; background: rgba(132,204,22,.12); font-size: 9px; line-height: 1; }
 @keyframes admin-tab-glide { from { opacity: .2; transform: scaleX(.35); } to { opacity: 1; transform: scaleX(1); } }
 @media (max-width: 560px) { .admin-tab-navigation { padding: 10px; }.admin-section-selector { align-items: stretch; flex-direction: column; gap: 6px; }.admin-section-selector select { width: 100%; }.admin-tab { padding: 0 12px; } }
+
+/* Responsive Super Admin navigation drawer */
+.admin-mobile-menu, .admin-mobile-close, .admin-mobile-scrim { display: none; }
+.admin-sidebar .brand-row { position: relative; }
+@media (max-width: 700px) {
+  .admin-sidebar { position: fixed; inset: 0 auto 0 0; z-index: 60; display: flex; width: min(292px, 88vw); transform: translateX(-105%); transition: transform .22s ease; box-shadow: 18px 0 45px rgba(0,0,0,.45); }
+  .admin-sidebar.mobile-open { transform: translateX(0); }
+  .admin-mobile-menu { display: grid; place-items: center; width: 34px; height: 34px; margin-right: 9px; color: #d8e8d9; border: 1px solid #1f2937; border-radius: 8px; background: #111827; }
+  .admin-mobile-menu:focus-visible, .admin-mobile-close:focus-visible { outline: 2px solid #84cc16; outline-offset: 2px; }
+  .admin-mobile-close { display: grid; place-items: center; margin-left: auto; width: 29px; height: 29px; color: #9ca3af; border: 1px solid #1f2937; border-radius: 7px; background: rgba(255,255,255,.04); transform: rotate(180deg); }
+  .admin-mobile-close:hover { color: #a3e635; border-color: rgba(132,204,22,.35); }
+  .admin-mobile-scrim { position: fixed; inset: 0; z-index: 55; display: block; border: 0; background: rgba(3,8,12,.68); backdrop-filter: blur(2px); }
+  .admin-topbar { justify-content: flex-start; padding: 0 18px; }
+  .admin-topbar .breadcrumbs { min-width: 0; overflow: hidden; white-space: nowrap; }
+  .admin-top-actions { margin-left: auto; }
+  .admin-top-actions .admin-live, .admin-top-actions .profile-switch-button { display: none; }
+  .admin-content { padding: 25px 18px 22px; }
+}
