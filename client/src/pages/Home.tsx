@@ -201,7 +201,7 @@ export default function Home() {
   const createWebhook = trpc.engine.createWebhook.useMutation({ onSuccess: () => { webhooks.refetch(); setWebhookUrl(""); setWebhookSecret(""); setShowWebhookSecret(false); notify("Webhook endpoint added"); }, onError: (error) => notify(mutationError(error), "error") });
   const testWebhook = trpc.engine.testWebhook.useMutation({ onSuccess: (result) => { webhooks.refetch(); notify(result.message, result.status === "DELIVERED" ? "success" : "error"); }, onError: (error) => notify(mutationError(error), "error") });
   const deleteWebhook = trpc.engine.deleteWebhook.useMutation({ onSuccess: () => { webhooks.refetch(); notify("Webhook endpoint removed"); }, onError: (error) => notify(mutationError(error), "error") });
-  const depositWallet = trpc.engine.depositWallet.useMutation({ onSuccess: () => { overview.refetch(); walletDeposits.refetch(); tillTransactions.refetch(); setDepositError(null); setDepositNotice("STK request accepted. Check the M-PESA phone now and enter your PIN. Your wallet updates only after Safaricom confirms payment."); notify("STK prompt request accepted"); }, onError: (error) => { const message = depositMutationError(error); setDepositNotice(null); setDepositError(message); notify("Deposit request failed — see the Wallet status panel"); } });
+  const depositWallet = trpc.engine.depositWallet.useMutation({ onSuccess: () => { void Promise.all([overview.refetch(), walletDeposits.refetch(), walletLedger.refetch(), tillTransactions.refetch()]); setDepositError(null); setDepositNotice("STK request accepted. Check the M-PESA phone now and enter your PIN. Your wallet updates only after Safaricom confirms payment."); notify("STK prompt request accepted"); }, onError: (error) => { const message = depositMutationError(error); setDepositNotice(null); setDepositError(message); notify("Deposit request failed — see the Wallet status panel"); } });
   const updateProfile = trpc.auth.updateProfile.useMutation({ onSuccess: async () => { await refresh(); setProfileOpen(false); notify("Profile updated"); }, onError: (error) => notify(mutationError(error), "error") });
   const changePassword = trpc.auth.changePassword.useMutation({ onSuccess: () => { setCurrentPassword(""); setNewPassword(""); setConfirmNewPassword(""); notify("Password changed successfully"); }, onError: (error) => notify(mutationError(error), "error") });
   useEffect(() => {
@@ -215,12 +215,13 @@ export default function Home() {
     const timer = window.setInterval(async () => {
       const response = await walletDeposits.refetch();
       const current = (response.data ?? []).find((deposit) => String(deposit.checkoutRequestId) === depositCheckoutId);
-      if (current?.status === "SUCCESS") { setDepositNotice("M-PESA payment confirmed. Your wallet has been credited."); setDepositCheckoutId(null); overview.refetch(); window.clearInterval(timer); }
-      else if (current?.status === "FAILED") { setDepositError(readableDepositError(current.failureReason)); setDepositNotice(null); setDepositCheckoutId(null); window.clearInterval(timer); }
+      const status = String(current?.status ?? "").toUpperCase();
+      if (status === "SUCCESS") { await Promise.all([overview.refetch(), walletLedger.refetch()]); setDepositNotice("M-PESA payment confirmed. Your wallet balance and ledger have been updated."); setDepositCheckoutId(null); window.clearInterval(timer); }
+      else if (status === "FAILED" || status === "CANCELLED") { setDepositError(readableDepositError(current?.failureReason) || "The M-PESA payment was not completed."); setDepositNotice(null); setDepositCheckoutId(null); window.clearInterval(timer); }
       else if (Date.now() - started > 120000) { setDepositError("No M-PESA callback received within two minutes. Confirm the number is an active Safaricom M-PESA line, then try again."); setDepositNotice(null); setDepositCheckoutId(null); window.clearInterval(timer); }
     }, 5000);
     return () => window.clearInterval(timer);
-  }, [depositCheckoutId, walletDeposits.refetch, overview.refetch]);
+  }, [depositCheckoutId, walletDeposits.refetch, overview.refetch, walletLedger.refetch]);
   useEffect(() => {
     if (!loading && !user) navigate("/login");
   }, [loading, user, navigate]);
